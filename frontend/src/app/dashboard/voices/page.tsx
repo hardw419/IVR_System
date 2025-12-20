@@ -217,9 +217,6 @@ export default function VoicesPage() {
                       onChange={(e) => setFormData({ ...formData, provider: e.target.value })}
                     >
                       <option value="openai">OpenAI</option>
-                      <option value="elevenlabs">ElevenLabs</option>
-                      <option value="azure">Azure</option>
-                      <option value="google">Google</option>
                     </select>
                   </div>
                 </div>
