@@ -25,6 +25,19 @@ class VapiService {
 
       const systemPrompt = (script.systemPrompt || '') + transferInstructions;
 
+      // Map voice provider names to Vapi's expected values
+      const providerMap = {
+        'elevenlabs': '11labs',
+        '11labs': '11labs',
+        'openai': 'openai',
+        'azure': 'azure',
+        'google': 'google',
+        'cartesia': 'cartesia',
+        'deepgram': 'deepgram',
+        'playht': 'playht'
+      };
+      const vapiVoiceProvider = providerMap[voice.provider] || 'openai';
+
       const payload = {
         phoneNumberId: process.env.VAPI_PHONE_NUMBER_ID,
         customer: {
@@ -48,7 +61,7 @@ class VapiService {
             maxTokens: 500
           },
           voice: {
-            provider: voice.provider || 'openai',
+            provider: vapiVoiceProvider,
             voiceId: voice.voiceId
           },
           firstMessage: assistantConfig?.firstMessage || 'Hello, how can I help you today?',
