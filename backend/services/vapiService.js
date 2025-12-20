@@ -43,6 +43,22 @@ class VapiService {
 
       let payload;
 
+      // Build dynamic transfer destinations from agents
+      let transferDestinations = [];
+      if (agents && agents.length > 0) {
+        const availableAgents = agents.filter(a => a.isAvailable);
+        transferDestinations = availableAgents.map(agent => ({
+          type: 'number',
+          number: agent.phoneNumber,
+          message: `Transferring you to ${agent.name}. Please hold.`,
+          description: `Press ${agent.keyPress} for ${agent.name}${agent.department ? ' (' + agent.department + ')' : ''}`,
+          transferPlan: {
+            mode: 'warm-transfer-say-message',
+            message: `Transferring you to ${agent.name}. Please hold.`
+          }
+        }));
+      }
+
       if (vapiAssistantId) {
         // Use saved assistant (has transfer tool attached)
         payload = {
@@ -68,6 +84,7 @@ class VapiService {
               voiceId: voice.voiceId
             },
             recordingEnabled: true,
+            dialKeypadFunctionEnabled: true,
             serverUrl: process.env.VAPI_WEBHOOK_URL || `${process.env.BACKEND_URL || 'http://localhost:5000'}/api/webhooks/vapi`
           }
         };

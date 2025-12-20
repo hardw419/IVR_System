@@ -123,51 +123,112 @@ router.post('/vapi', async (req, res) => {
     const vapiCall = message.call || body.call;
     const digit = message.digit || body.digit;
 
-    // Handle DTMF event - this is the key for call transfer!
-    if (type === 'dtmf' && digit) {
-      console.log(`🔢 DTMF detected - Digit pressed: ${digit}`);
+    // Handle function-call for transfer_call_tool
+    if (type === 'function-call') {
+      const functionCall = message.functionCall || body.functionCall;
+      console.log('🔧 Function call received:', functionCall);
 
-      if (digit === '1' || digit === '2') {
-        // Find the call in our database
+      if (functionCall?.name === 'transferCall' || functionCall?.name === 'transfer_call_tool') {
+        const call = vapiCall?.id ? await Call.findOne({ vapiCallId: vapiCall.id }) : null;
+
+        if (call) {
+          // Get the destination from function parameters or find agent
+          const params = functionCall.parameters || {};
+          let transferNumber = params.destination || params.number;
+
+          // If no specific number, try to find an available agent
+          if (!transferNumber) {
+            const agent = await Agent.findOne({
+              userId: call.userId,
+              isAvailable: true
+            });
+            if (agent) {
+              transferNumber = agent.phoneNumber;
+            }
+          }
+
+          if (transferNumber) {
+            console.log(`📞 Function transfer to: ${transferNumber}`);
+            call.status = 'transferred';
+            call.transferredTo = transferNumber;
+            await call.save();
+          }
+        }
+
+        return res.json({ result: 'Transfer initiated' });
+      }
+    }
+
+    // Handle DTMF event - keypad press 1 or 2
+    if (type === 'dtmf' || (type === 'keypad' && digit)) {
+      const pressedDigit = digit || message.digits;
+      console.log(`🔢 DTMF detected - Digit pressed: ${pressedDigit}`);
+
+      if (pressedDigit === '1' || pressedDigit === '2') {
         const call = vapiCall?.id ? await Call.findOne({ vapiCallId: vapiCall.id }) : null;
 
         if (call) {
           // Find the agent assigned to this key press
           const agent = await Agent.findOne({
             userId: call.userId,
-            keyPress: digit,
+            keyPress: pressedDigit,
             isAvailable: true
           });
 
           if (agent) {
-            console.log(`📞 Transferring call to ${agent.name} at ${agent.phoneNumber}`);
+            console.log(`📞 DTMF Transfer to ${agent.name} at ${agent.phoneNumber}`);
 
-            // Update call record
-            call.keyPressed = digit;
+            call.keyPressed = pressedDigit;
             call.transferredTo = agent.phoneNumber;
             call.status = 'transferred';
             await call.save();
 
-            // Respond to Vapi with transfer instruction
+            // Return transfer destination to Vapi
             return res.json({
-              type: 'call.transfer',
-              destination: {
-                type: 'phone',
-                number: agent.phoneNumber
-              }
+              results: [{
+                result: 'transfer',
+                destination: {
+                  type: 'number',
+                  number: agent.phoneNumber,
+                  message: `Transferring you to ${agent.name}. Please hold.`
+                }
+              }]
             });
           } else {
-            console.log('❌ No available agent found for key:', digit);
+            console.log('❌ No available agent found for key:', pressedDigit);
             return res.json({
-              type: 'say',
-              text: 'Sorry, no agent is available at the moment. Please try again later.'
+              results: [{
+                result: 'No agent available for this option.'
+              }]
             });
           }
         }
       }
 
-      // For other digits, just continue
-      return res.json({ type: 'continue' });
+      return res.json({ results: [{ result: 'continue' }] });
+    }
+
+    // Handle assistant-request - return dynamic transfer destinations
+    if (type === 'assistant-request') {
+      console.log('📋 Assistant request - providing transfer destinations');
+
+      // Get all available agents for transfer
+      const agents = await Agent.find({ isAvailable: true });
+
+      if (agents.length > 0) {
+        const transferDestinations = agents.map(agent => ({
+          type: 'number',
+          number: agent.phoneNumber,
+          message: `Transferring you to ${agent.name}. Please hold.`,
+          description: `Press ${agent.keyPress} for ${agent.name}${agent.department ? ' (' + agent.department + ')' : ''}`
+        }));
+
+        return res.json({
+          assistant: {
+            transferDestinations: transferDestinations
+          }
+        });
+      }
     }
 
     // Handle other message types
@@ -190,7 +251,6 @@ router.post('/vapi', async (req, res) => {
           if (vapiCall.duration) {
             call.duration = Math.round(vapiCall.duration);
           }
-          // Get final transcript and recording
           const artifact = message.artifact || body.artifact;
           if (artifact?.transcript) {
             call.transcript = artifact.transcript;
@@ -222,7 +282,6 @@ router.post('/vapi', async (req, res) => {
           break;
 
         case 'transcript':
-          // Real-time transcript update
           const transcript = message.transcript || body.transcript;
           if (transcript) {
             call.transcript = (call.transcript || '') + ' ' + transcript;
@@ -230,7 +289,6 @@ router.post('/vapi', async (req, res) => {
           break;
 
         case 'conversation-update':
-          // Update messages in real-time
           const conversation = message.conversation || body.conversation;
           if (conversation) {
             call.transcriptMessages = conversation.map(msg => ({
