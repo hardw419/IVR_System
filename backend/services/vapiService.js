@@ -47,84 +47,78 @@ class VapiService {
       let transferDestinations = [];
       if (agents && agents.length > 0) {
         const availableAgents = agents.filter(a => a.isAvailable);
-        transferDestinations = availableAgents.map(agent => ({
-          type: 'number',
-          number: agent.phoneNumber,
-          message: `Transferring you to ${agent.name}. Please hold.`,
-          description: `Press ${agent.keyPress} for ${agent.name}${agent.department ? ' (' + agent.department + ')' : ''}`,
-          transferPlan: {
-            mode: 'warm-transfer-say-message',
-            message: `Transferring you to ${agent.name}. Please hold.`
+        console.log('Available agents for transfer:', JSON.stringify(availableAgents, null, 2));
+
+        transferDestinations = availableAgents.map(agent => {
+          // Ensure phone number is in E.164 format
+          let phoneNumber = agent.phoneNumber;
+          if (phoneNumber && !phoneNumber.startsWith('+')) {
+            phoneNumber = '+' + phoneNumber;
           }
-        }));
+
+          return {
+            type: 'number',
+            number: phoneNumber,
+            message: `Transferring you to ${agent.name}. Please hold.`,
+            description: `Transfer to ${agent.name}`,
+            transferPlan: {
+              mode: 'warm-transfer-say-message',
+              message: `Transferring you to ${agent.name}. Please hold.`
+            }
+          };
+        });
+
+        console.log('Transfer destinations:', JSON.stringify(transferDestinations, null, 2));
       }
 
-      if (vapiAssistantId) {
-        // Use saved assistant (has transfer tool attached)
-        payload = {
-          phoneNumberId: process.env.VAPI_PHONE_NUMBER_ID,
-          customer: {
-            number: customerPhone
-          },
-          assistantId: vapiAssistantId,
-          assistantOverrides: {
-            firstMessage: assistantConfig?.firstMessage || script.content || 'Hello, how can I help you today?',
-            model: {
-              provider: 'openai',
-              model: 'gpt-4',
-              messages: [
-                {
-                  role: 'system',
-                  content: systemPrompt
-                }
-              ]
-            },
-            voice: {
-              provider: vapiVoiceProvider,
-              voiceId: voice.voiceId
-            },
-            recordingEnabled: true,
-            dialKeypadFunctionEnabled: true,
-            serverUrl: process.env.VAPI_WEBHOOK_URL || `${process.env.BACKEND_URL || 'http://localhost:5000'}/api/webhooks/vapi`
+      // Build inline assistant with dynamic transfer destinations from Agents page
+      const assistantConfig_final = {
+        model: {
+          provider: 'openai',
+          model: 'gpt-4',
+          messages: [
+            {
+              role: 'system',
+              content: systemPrompt
+            }
+          ],
+          temperature: 0.7,
+          maxTokens: 500
+        },
+        voice: {
+          provider: vapiVoiceProvider,
+          voiceId: voice.voiceId
+        },
+        firstMessage: assistantConfig?.firstMessage || script.content || 'Hello, how can I help you today?',
+        recordingEnabled: true,
+        endCallFunctionEnabled: true,
+        dialKeypadFunctionEnabled: true,
+        serverUrl: process.env.VAPI_WEBHOOK_URL || `${process.env.BACKEND_URL || 'http://localhost:5000'}/api/webhooks/vapi`
+      };
+
+      // Add transfer tool with dynamic destinations if agents exist
+      if (transferDestinations.length > 0) {
+        assistantConfig_final.model.tools = [
+          {
+            type: 'transferCall',
+            destinations: transferDestinations,
+            messages: [
+              {
+                type: 'request-start',
+                content: 'Please hold while I transfer your call.'
+              }
+            ]
           }
-        };
-      } else {
-        // Use inline assistant (no transfer tool)
-        payload = {
-          phoneNumberId: process.env.VAPI_PHONE_NUMBER_ID,
-          customer: {
-            number: customerPhone
-          },
-          assistant: {
-            model: {
-              provider: 'openai',
-              model: 'gpt-4',
-              messages: [
-                {
-                  role: 'system',
-                  content: systemPrompt
-                },
-                {
-                  role: 'assistant',
-                  content: script.content
-                }
-              ],
-              temperature: 0.7,
-              maxTokens: 500
-            },
-            voice: {
-              provider: vapiVoiceProvider,
-              voiceId: voice.voiceId
-            },
-            firstMessage: assistantConfig?.firstMessage || 'Hello, how can I help you today?',
-            recordingEnabled: true,
-            endCallFunctionEnabled: true,
-            dialKeypadFunctionEnabled: true,
-            serverUrl: process.env.VAPI_WEBHOOK_URL || `${process.env.BACKEND_URL || 'http://localhost:5000'}/api/webhooks/vapi`,
-            ...assistantConfig
-          }
-        };
+        ];
       }
+
+      payload = {
+        phoneNumberId: process.env.VAPI_PHONE_NUMBER_ID,
+        customer: {
+          number: customerPhone
+        },
+        assistant: assistantConfig_final
+      };
 
       console.log('Creating Vapi call with payload:', JSON.stringify(payload, null, 2));
 

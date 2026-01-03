@@ -287,8 +287,11 @@ router.post('/single', [
 
     // Initiate call via Vapi
     try {
+      // Normalize phone number - remove spaces and ensure E.164 format
+      const normalizedPhone = customerPhone.replace(/\s+/g, '');
+
       const vapiCall = await vapiService.createPhoneCall({
-        customerPhone,
+        customerPhone: normalizedPhone,
         script,
         voice,
         agents, // Pass agents for transfer configuration
