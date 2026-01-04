@@ -8,7 +8,7 @@ const voiceSchema = new mongoose.Schema({
   },
   provider: {
     type: String,
-    enum: ['openai', 'elevenlabs', 'azure', 'google'],
+    enum: ['openai', '11labs', 'playht', 'deepgram', 'azure'],
     default: 'openai'
   },
   voiceId: {

@@ -6,20 +6,136 @@ import { voicesAPI } from '@/lib/api';
 import { Plus, Edit, Trash2, Mic } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-// OpenAI available voices
-const openAIVoices = [
-  { id: 'alloy', name: 'Alloy', gender: 'neutral', description: 'Neutral, balanced tone' },
-  { id: 'ash', name: 'Ash', gender: 'male', description: 'Soft, conversational male' },
-  { id: 'ballad', name: 'Ballad', gender: 'male', description: 'Warm, expressive male' },
-  { id: 'coral', name: 'Coral', gender: 'female', description: 'Warm, friendly female' },
-  { id: 'echo', name: 'Echo', gender: 'male', description: 'Smooth, professional male' },
-  { id: 'fable', name: 'Fable', gender: 'neutral', description: 'Expressive, storytelling' },
-  { id: 'onyx', name: 'Onyx', gender: 'male', description: 'Deep, authoritative male' },
-  { id: 'nova', name: 'Nova', gender: 'female', description: 'Friendly, upbeat female' },
-  { id: 'sage', name: 'Sage', gender: 'female', description: 'Calm, thoughtful female' },
-  { id: 'shimmer', name: 'Shimmer', gender: 'female', description: 'Warm, gentle female' },
-  { id: 'verse', name: 'Verse', gender: 'male', description: 'Clear, articulate male' },
-];
+// Voice providers and their voices
+const voiceProviders = {
+  openai: {
+    name: 'OpenAI',
+    voices: [
+      { id: 'alloy', name: 'Alloy', gender: 'neutral', description: 'Neutral, balanced tone' },
+      { id: 'ash', name: 'Ash', gender: 'male', description: 'Soft, conversational male' },
+      { id: 'ballad', name: 'Ballad', gender: 'male', description: 'Warm, expressive male' },
+      { id: 'coral', name: 'Coral', gender: 'female', description: 'Warm, friendly female' },
+      { id: 'echo', name: 'Echo', gender: 'male', description: 'Smooth, professional male' },
+      { id: 'fable', name: 'Fable', gender: 'neutral', description: 'Expressive, storytelling' },
+      { id: 'onyx', name: 'Onyx', gender: 'male', description: 'Deep, authoritative male' },
+      { id: 'nova', name: 'Nova', gender: 'female', description: 'Friendly, upbeat female' },
+      { id: 'sage', name: 'Sage', gender: 'female', description: 'Calm, thoughtful female' },
+      { id: 'shimmer', name: 'Shimmer', gender: 'female', description: 'Warm, gentle female' },
+      { id: 'verse', name: 'Verse', gender: 'male', description: 'Clear, articulate male' },
+    ]
+  },
+  '11labs': {
+    name: 'ElevenLabs',
+    voices: [
+      { id: 'rachel', name: 'Rachel', gender: 'female', description: 'Calm, professional female' },
+      { id: 'drew', name: 'Drew', gender: 'male', description: 'Well-rounded, confident male' },
+      { id: 'clyde', name: 'Clyde', gender: 'male', description: 'War veteran, deep male' },
+      { id: 'paul', name: 'Paul', gender: 'male', description: 'Ground reporter, serious male' },
+      { id: 'domi', name: 'Domi', gender: 'female', description: 'Strong, assertive female' },
+      { id: 'dave', name: 'Dave', gender: 'male', description: 'Conversational British male' },
+      { id: 'fin', name: 'Fin', gender: 'male', description: 'Sailor, rugged male' },
+      { id: 'sarah', name: 'Sarah', gender: 'female', description: 'Soft, news anchor female' },
+      { id: 'antoni', name: 'Antoni', gender: 'male', description: 'Well-rounded, warm male' },
+      { id: 'thomas', name: 'Thomas', gender: 'male', description: 'Calm, meditation male' },
+      { id: 'charlie', name: 'Charlie', gender: 'male', description: 'Casual Australian male' },
+      { id: 'george', name: 'George', gender: 'male', description: 'Warm British narrator' },
+      { id: 'emily', name: 'Emily', gender: 'female', description: 'Calm, soothing female' },
+      { id: 'elli', name: 'Elli', gender: 'female', description: 'Emotional, expressive female' },
+      { id: 'callum', name: 'Callum', gender: 'male', description: 'Transatlantic, intense male' },
+      { id: 'patrick', name: 'Patrick', gender: 'male', description: 'Shouty, energetic male' },
+      { id: 'harry', name: 'Harry', gender: 'male', description: 'Anxious, young male' },
+      { id: 'liam', name: 'Liam', gender: 'male', description: 'Articulate, deep male' },
+      { id: 'dorothy', name: 'Dorothy', gender: 'female', description: 'Pleasant British female' },
+      { id: 'josh', name: 'Josh', gender: 'male', description: 'Young, deep American male' },
+      { id: 'arnold', name: 'Arnold', gender: 'male', description: 'Crisp, narrator male' },
+      { id: 'charlotte', name: 'Charlotte', gender: 'female', description: 'Seductive Swedish female' },
+      { id: 'matilda', name: 'Matilda', gender: 'female', description: 'Warm, young female' },
+      { id: 'matthew', name: 'Matthew', gender: 'male', description: 'Audiobook narrator male' },
+      { id: 'james', name: 'James', gender: 'male', description: 'Calm Australian male' },
+      { id: 'joseph', name: 'Joseph', gender: 'male', description: 'British, articulate male' },
+      { id: 'jeremy', name: 'Jeremy', gender: 'male', description: 'Irish, excited male' },
+      { id: 'michael', name: 'Michael', gender: 'male', description: 'Older, deep male' },
+      { id: 'ethan', name: 'Ethan', gender: 'male', description: 'Narrator, soft male' },
+      { id: 'gigi', name: 'Gigi', gender: 'female', description: 'Childish, animated female' },
+    ]
+  },
+  playht: {
+    name: 'PlayHT',
+    voices: [
+      { id: 'jennifer', name: 'Jennifer', gender: 'female', description: 'American, expressive female' },
+      { id: 'matt', name: 'Matt', gender: 'male', description: 'American, conversational male' },
+      { id: 'chris', name: 'Chris', gender: 'male', description: 'American, casual male' },
+      { id: 'davis', name: 'Davis', gender: 'male', description: 'American, deep male' },
+      { id: 'henry', name: 'Henry', gender: 'male', description: 'American, friendly male' },
+      { id: 'jack', name: 'Jack', gender: 'male', description: 'American, narrator male' },
+      { id: 'ruby', name: 'Ruby', gender: 'female', description: 'American, warm female' },
+      { id: 'melissa', name: 'Melissa', gender: 'female', description: 'American, professional female' },
+      { id: 'donna', name: 'Donna', gender: 'female', description: 'American, mature female' },
+      { id: 'michael', name: 'Michael', gender: 'male', description: 'American, clear male' },
+      { id: 'will', name: 'Will', gender: 'male', description: 'American, upbeat male' },
+      { id: 'amy', name: 'Amy', gender: 'female', description: 'British, professional female' },
+      { id: 'brian', name: 'Brian', gender: 'male', description: 'British, narrator male' },
+      { id: 'emma', name: 'Emma', gender: 'female', description: 'British, friendly female' },
+      { id: 'oliver', name: 'Oliver', gender: 'male', description: 'British, formal male' },
+    ]
+  },
+  deepgram: {
+    name: 'Deepgram',
+    voices: [
+      { id: 'asteria', name: 'Asteria', gender: 'female', description: 'American, professional female' },
+      { id: 'luna', name: 'Luna', gender: 'female', description: 'American, warm female' },
+      { id: 'stella', name: 'Stella', gender: 'female', description: 'American, friendly female' },
+      { id: 'athena', name: 'Athena', gender: 'female', description: 'British, professional female' },
+      { id: 'hera', name: 'Hera', gender: 'female', description: 'American, calm female' },
+      { id: 'orion', name: 'Orion', gender: 'male', description: 'American, professional male' },
+      { id: 'arcas', name: 'Arcas', gender: 'male', description: 'American, conversational male' },
+      { id: 'perseus', name: 'Perseus', gender: 'male', description: 'American, friendly male' },
+      { id: 'angus', name: 'Angus', gender: 'male', description: 'Irish, warm male' },
+      { id: 'orpheus', name: 'Orpheus', gender: 'male', description: 'American, deep male' },
+      { id: 'helios', name: 'Helios', gender: 'male', description: 'British, articulate male' },
+      { id: 'zeus', name: 'Zeus', gender: 'male', description: 'American, authoritative male' },
+    ]
+  },
+  azure: {
+    name: 'Azure',
+    voices: [
+      { id: 'en-US-JennyNeural', name: 'Jenny', gender: 'female', description: 'American, conversational female' },
+      { id: 'en-US-GuyNeural', name: 'Guy', gender: 'male', description: 'American, newscast male' },
+      { id: 'en-US-AriaNeural', name: 'Aria', gender: 'female', description: 'American, professional female' },
+      { id: 'en-US-DavisNeural', name: 'Davis', gender: 'male', description: 'American, casual male' },
+      { id: 'en-US-AmberNeural', name: 'Amber', gender: 'female', description: 'American, warm female' },
+      { id: 'en-US-AnaNeural', name: 'Ana', gender: 'female', description: 'American, child female' },
+      { id: 'en-US-AshleyNeural', name: 'Ashley', gender: 'female', description: 'American, cheerful female' },
+      { id: 'en-US-BrandonNeural', name: 'Brandon', gender: 'male', description: 'American, friendly male' },
+      { id: 'en-US-ChristopherNeural', name: 'Christopher', gender: 'male', description: 'American, reliable male' },
+      { id: 'en-US-CoraNeural', name: 'Cora', gender: 'female', description: 'American, formal female' },
+      { id: 'en-US-ElizabethNeural', name: 'Elizabeth', gender: 'female', description: 'American, warm female' },
+      { id: 'en-US-EricNeural', name: 'Eric', gender: 'male', description: 'American, calm male' },
+      { id: 'en-US-JacobNeural', name: 'Jacob', gender: 'male', description: 'American, casual male' },
+      { id: 'en-US-JaneNeural', name: 'Jane', gender: 'female', description: 'American, positive female' },
+      { id: 'en-US-JasonNeural', name: 'Jason', gender: 'male', description: 'American, cheerful male' },
+      { id: 'en-US-MichelleNeural', name: 'Michelle', gender: 'female', description: 'American, friendly female' },
+      { id: 'en-US-MonicaNeural', name: 'Monica', gender: 'female', description: 'American, professional female' },
+      { id: 'en-US-NancyNeural', name: 'Nancy', gender: 'female', description: 'American, warm female' },
+      { id: 'en-US-RogerNeural', name: 'Roger', gender: 'male', description: 'American, broadcaster male' },
+      { id: 'en-US-SaraNeural', name: 'Sara', gender: 'female', description: 'American, cheerful female' },
+      { id: 'en-US-SteffanNeural', name: 'Steffan', gender: 'male', description: 'American, casual male' },
+      { id: 'en-US-TonyNeural', name: 'Tony', gender: 'male', description: 'American, friendly male' },
+      { id: 'en-GB-SoniaNeural', name: 'Sonia', gender: 'female', description: 'British, cheerful female' },
+      { id: 'en-GB-RyanNeural', name: 'Ryan', gender: 'male', description: 'British, cheerful male' },
+      { id: 'en-GB-LibbyNeural', name: 'Libby', gender: 'female', description: 'British, warm female' },
+      { id: 'en-AU-NatashaNeural', name: 'Natasha', gender: 'female', description: 'Australian, warm female' },
+      { id: 'en-AU-WilliamNeural', name: 'William', gender: 'male', description: 'Australian, casual male' },
+      { id: 'en-IN-NeerjaNeural', name: 'Neerja', gender: 'female', description: 'Indian, professional female' },
+      { id: 'en-IN-PrabhatNeural', name: 'Prabhat', gender: 'male', description: 'Indian, professional male' },
+    ]
+  }
+};
+
+// Helper to get voices for current provider
+const getVoicesForProvider = (provider: string) => {
+  return voiceProviders[provider as keyof typeof voiceProviders]?.voices || []
+};
 
 export default function VoicesPage() {
   const [voices, setVoices] = useState<any[]>([]);
@@ -229,9 +345,11 @@ export default function VoicesPage() {
                       required
                       className="input-field"
                       value={formData.provider}
-                      onChange={(e) => setFormData({ ...formData, provider: e.target.value })}
+                      onChange={(e) => setFormData({ ...formData, provider: e.target.value, voiceId: '' })}
                     >
-                      <option value="openai">OpenAI</option>
+                      {Object.entries(voiceProviders).map(([key, provider]) => (
+                        <option key={key} value={key}>{provider.name} ({provider.voices.length} voices)</option>
+                      ))}
                     </select>
                   </div>
                 </div>
@@ -244,7 +362,8 @@ export default function VoicesPage() {
                       className="input-field"
                       value={formData.voiceId}
                       onChange={(e) => {
-                        const selectedVoice = openAIVoices.find(v => v.id === e.target.value);
+                        const voices = getVoicesForProvider(formData.provider);
+                        const selectedVoice = voices.find(v => v.id === e.target.value);
                         setFormData({
                           ...formData,
                           voiceId: e.target.value,
@@ -253,7 +372,7 @@ export default function VoicesPage() {
                       }}
                     >
                       <option value="">Select a voice</option>
-                      {openAIVoices.map((voice) => (
+                      {getVoicesForProvider(formData.provider).map((voice) => (
                         <option key={voice.id} value={voice.id}>
                           {voice.name} - {voice.description}
                         </option>
