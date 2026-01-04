@@ -57,7 +57,7 @@ router.post('/', [
   auth,
   body('name').trim().notEmpty().withMessage('Voice name is required'),
   body('voiceId').trim().notEmpty().withMessage('Voice ID is required'),
-  body('provider').optional().isIn(['openai', 'elevenlabs', 'azure', 'google'])
+  body('provider').optional().isIn(['openai', '11labs', 'playht', 'deepgram', 'azure'])
 ], async (req, res) => {
   try {
     const errors = validationResult(req);
