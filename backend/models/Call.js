@@ -65,11 +65,22 @@ const callSchema = new mongoose.Schema({
   },
   keyPressed: {
     type: String,
-    enum: ['1', '2', 'none'],
+    enum: ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', 'none'],
     default: 'none'
   },
   transferredTo: {
     type: String
+  },
+  transferDetails: {
+    agentName: String,
+    agentPhone: String,
+    transferTime: Date,
+    transferStatus: {
+      type: String,
+      enum: ['initiated', 'ringing', 'answered', 'completed', 'failed', 'no-answer'],
+      default: 'initiated'
+    },
+    transferDuration: Number // Duration of agent call in seconds
   },
   cost: {
     type: Number,

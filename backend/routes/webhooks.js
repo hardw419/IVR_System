@@ -135,10 +135,19 @@ router.post('/vapi', async (req, res) => {
           // Get the destination from function parameters or find agent
           const params = functionCall.parameters || {};
           let transferNumber = params.destination || params.number;
+          let agentName = 'Agent';
 
-          // If no specific number, try to find an available agent
-          if (!transferNumber) {
-            const agent = await Agent.findOne({
+          // Find the agent by phone number or get first available
+          let agent = null;
+          if (transferNumber) {
+            agent = await Agent.findOne({
+              userId: call.userId,
+              phoneNumber: transferNumber
+            });
+          }
+
+          if (!agent) {
+            agent = await Agent.findOne({
               userId: call.userId,
               isAvailable: true
             });
@@ -147,10 +156,20 @@ router.post('/vapi', async (req, res) => {
             }
           }
 
+          if (agent) {
+            agentName = agent.name;
+          }
+
           if (transferNumber) {
-            console.log(`📞 Function transfer to: ${transferNumber}`);
+            console.log(`📞 Function transfer to: ${agentName} at ${transferNumber}`);
             call.status = 'transferred';
             call.transferredTo = transferNumber;
+            call.transferDetails = {
+              agentName: agentName,
+              agentPhone: transferNumber,
+              transferTime: new Date(),
+              transferStatus: 'initiated'
+            };
             await call.save();
           }
         }
@@ -181,6 +200,12 @@ router.post('/vapi', async (req, res) => {
             call.keyPressed = pressedDigit;
             call.transferredTo = agent.phoneNumber;
             call.status = 'transferred';
+            call.transferDetails = {
+              agentName: agent.name,
+              agentPhone: agent.phoneNumber,
+              transferTime: new Date(),
+              transferStatus: 'initiated'
+            };
             await call.save();
 
             // Return transfer destination to Vapi

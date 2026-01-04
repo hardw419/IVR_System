@@ -6,6 +6,21 @@ import { voicesAPI } from '@/lib/api';
 import { Plus, Edit, Trash2, Mic } from 'lucide-react';
 import toast from 'react-hot-toast';
 
+// OpenAI available voices
+const openAIVoices = [
+  { id: 'alloy', name: 'Alloy', gender: 'neutral', description: 'Neutral, balanced tone' },
+  { id: 'ash', name: 'Ash', gender: 'male', description: 'Soft, conversational male' },
+  { id: 'ballad', name: 'Ballad', gender: 'male', description: 'Warm, expressive male' },
+  { id: 'coral', name: 'Coral', gender: 'female', description: 'Warm, friendly female' },
+  { id: 'echo', name: 'Echo', gender: 'male', description: 'Smooth, professional male' },
+  { id: 'fable', name: 'Fable', gender: 'neutral', description: 'Expressive, storytelling' },
+  { id: 'onyx', name: 'Onyx', gender: 'male', description: 'Deep, authoritative male' },
+  { id: 'nova', name: 'Nova', gender: 'female', description: 'Friendly, upbeat female' },
+  { id: 'sage', name: 'Sage', gender: 'female', description: 'Calm, thoughtful female' },
+  { id: 'shimmer', name: 'Shimmer', gender: 'female', description: 'Warm, gentle female' },
+  { id: 'verse', name: 'Verse', gender: 'male', description: 'Clear, articulate male' },
+];
+
 export default function VoicesPage() {
   const [voices, setVoices] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -223,18 +238,27 @@ export default function VoicesPage() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                   <div>
-                    <label className="label">Voice ID *</label>
-                    <input
-                      type="text"
+                    <label className="label">Voice *</label>
+                    <select
                       required
                       className="input-field"
-                      placeholder="e.g., alloy, echo, nova"
                       value={formData.voiceId}
-                      onChange={(e) => setFormData({ ...formData, voiceId: e.target.value })}
-                    />
-                    <p className="mt-1.5 text-xs text-gray-500">
-                      OpenAI: alloy, echo, fable, onyx, nova, shimmer
-                    </p>
+                      onChange={(e) => {
+                        const selectedVoice = openAIVoices.find(v => v.id === e.target.value);
+                        setFormData({
+                          ...formData,
+                          voiceId: e.target.value,
+                          gender: selectedVoice?.gender || 'neutral'
+                        });
+                      }}
+                    >
+                      <option value="">Select a voice</option>
+                      {openAIVoices.map((voice) => (
+                        <option key={voice.id} value={voice.id}>
+                          {voice.name} - {voice.description}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                   <div>
                     <label className="label">Gender</label>

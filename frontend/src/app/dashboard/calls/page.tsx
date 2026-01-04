@@ -113,6 +113,10 @@ export default function CallsPage() {
       'failed': 'bg-red-100 text-red-800',
       'queued': 'bg-yellow-100 text-yellow-800',
       'initiated': 'bg-purple-100 text-purple-800',
+      'transferred': 'bg-indigo-100 text-indigo-800',
+      'no-answer': 'bg-orange-100 text-orange-800',
+      'busy': 'bg-pink-100 text-pink-800',
+      'ringing': 'bg-cyan-100 text-cyan-800',
     };
     return colors[status] || 'bg-gray-100 text-gray-800';
   };
@@ -390,6 +394,7 @@ export default function CallsPage() {
                       <th className="table-header">Phone</th>
                       <th className="table-header">Script</th>
                       <th className="table-header">Status</th>
+                      <th className="table-header">Transferred To</th>
                       <th className="table-header">Duration</th>
                       <th className="table-header">Date</th>
                       <th className="table-header text-right">Actions</th>
@@ -407,6 +412,19 @@ export default function CallsPage() {
                           <span className={`inline-flex items-center px-2.5 py-1 text-xs font-semibold rounded-lg ${getStatusColor(call.status)}`}>
                             {call.status}
                           </span>
+                        </td>
+                        <td className="table-cell">
+                          {call.status === 'transferred' && call.transferDetails ? (
+                            <div className="text-sm">
+                              <span className="font-medium text-green-700">{call.transferDetails.agentName}</span>
+                              <br />
+                              <span className="text-xs text-gray-500">{call.transferDetails.agentPhone}</span>
+                            </div>
+                          ) : call.transferredTo ? (
+                            <span className="text-sm text-gray-600">{call.transferredTo}</span>
+                          ) : (
+                            <span className="text-gray-400">-</span>
+                          )}
                         </td>
                         <td className="table-cell text-gray-600">
                           {call.duration ? `${call.duration}s` : '-'}
