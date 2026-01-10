@@ -3,6 +3,7 @@ const router = express.Router();
 const twilio = require('twilio');
 const Call = require('../models/Call');
 const Agent = require('../models/Agent');
+const CallQueue = require('../models/CallQueue');
 const twilioService = require('../services/twilioService');
 
 // @route   POST /api/webhooks/twilio/status
@@ -187,7 +188,50 @@ router.post('/vapi', async (req, res) => {
         const call = vapiCall?.id ? await Call.findOne({ vapiCallId: vapiCall.id }) : null;
 
         if (call) {
-          // Find the agent assigned to this key press
+          // Check if queue mode is enabled (add to queue instead of direct transfer)
+          const useQueueMode = process.env.USE_QUEUE_MODE === 'true';
+
+          if (useQueueMode) {
+            // Add to queue instead of transferring directly
+            console.log(`📋 Adding call to queue - Customer: ${call.customerPhone}`);
+
+            // Create queue entry
+            const queueEntry = new CallQueue({
+              callId: call._id,
+              vapiCallId: vapiCall.id,
+              userId: call.userId,
+              customerPhone: call.customerPhone,
+              customerName: call.customerName,
+              keyPressed: pressedDigit,
+              status: 'waiting',
+              waitStartTime: new Date()
+            });
+            await queueEntry.save();
+
+            // Update call status
+            call.keyPressed = pressedDigit;
+            call.status = 'in-queue';
+            await call.save();
+
+            // Emit socket event to notify agents
+            const io = req.app.get('io');
+            if (io) {
+              io.to(`agent-${call.userId}`).emit('new-queue-call', {
+                queueEntry: queueEntry.toObject(),
+                customerName: call.customerName,
+                customerPhone: call.customerPhone
+              });
+            }
+
+            // Tell AI to keep customer on hold
+            return res.json({
+              results: [{
+                result: 'Please hold while we connect you to an agent. An agent will be with you shortly.'
+              }]
+            });
+          }
+
+          // Original direct transfer logic (when queue mode is disabled)
           const agent = await Agent.findOne({
             userId: call.userId,
             keyPress: pressedDigit,

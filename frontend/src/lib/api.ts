@@ -84,3 +84,12 @@ export const callsAPI = {
   sync: () => api.post('/calls/sync'),
 };
 
+// Queue API
+export const queueAPI = {
+  getQueue: () => api.get('/queue'),
+  getStats: () => api.get('/queue/stats'),
+  acceptCall: (queueId: string) => api.post(`/queue/accept/${queueId}`),
+  completeCall: (queueId: string, notes?: string) => api.post(`/queue/complete/${queueId}`, { notes }),
+  getToken: () => api.get('/queue/token'),
+};
+

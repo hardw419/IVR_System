@@ -12,7 +12,8 @@ import {
   Users,
   LogOut,
   BarChart3,
-  Sparkles
+  Sparkles,
+  Headphones
 } from 'lucide-react';
 
 interface DashboardLayoutProps {
@@ -46,6 +47,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
 
   const navigation = [
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+    { name: 'Agent Queue', href: '/dashboard/agent-queue', icon: Headphones },
     { name: 'Scripts', href: '/dashboard/scripts', icon: FileText },
     { name: 'Voices', href: '/dashboard/voices', icon: Mic },
     { name: 'Calls', href: '/dashboard/calls', icon: Phone },
