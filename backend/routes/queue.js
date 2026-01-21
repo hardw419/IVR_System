@@ -263,6 +263,25 @@ router.post('/voice', async (req, res) => {
   res.send(response.toString());
 });
 
+// @route   GET /api/queue/debug
+// @desc    Debug endpoint to check all queue items in database
+// @access  Public (for debugging)
+router.get('/debug', async (req, res) => {
+  try {
+    const allQueue = await CallQueue.find({}).sort({ waitStartTime: -1 }).limit(10);
+    const User = require('../models/User');
+    const users = await User.find({}).select('_id email name');
+    res.json({
+      success: true,
+      queueCount: allQueue.length,
+      queue: allQueue,
+      users: users
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // @route   POST /api/queue/incoming
 // @desc    Webhook for incoming calls to Twilio number - rings in browser
 // @access  Public (Twilio webhook)
@@ -271,40 +290,54 @@ router.post('/incoming', async (req, res) => {
   const response = new VoiceResponse();
 
   const { From, To, CallSid } = req.body;
-  console.log('Incoming call from:', From, 'to:', To, 'CallSid:', CallSid);
+  console.log('=== INCOMING CALL WEBHOOK ===');
+  console.log('From:', From, 'To:', To, 'CallSid:', CallSid);
+  console.log('Full request body:', JSON.stringify(req.body));
 
   try {
     // Get the io instance
     const io = req.app.get('io');
 
     // Create queue item for this incoming call
-    // For now, we'll associate with first user - in production, map by phone number
     const User = require('../models/User');
-    const user = await User.findOne(); // Get first user for demo
+    const users = await User.find({}); // Get all users
+    console.log('Found users:', users.length);
 
-    if (user) {
+    if (users.length > 0) {
+      const user = users[0]; // Use first user for now
+      console.log('Using user:', user._id, user.email);
+
       const queueItem = new CallQueue({
         userId: user._id,
-        customerPhone: From,
-        customerName: From, // Could be looked up from CRM
+        customerPhone: From || 'Unknown',
+        customerName: From || 'Unknown Caller',
         keyPressed: 'direct',
         status: 'waiting',
         waitStartTime: new Date(),
         twilioCallSid: CallSid,
         priority: 1
       });
-      await queueItem.save();
+
+      const savedItem = await queueItem.save();
+      console.log('=== QUEUE ITEM SAVED ===');
+      console.log('Queue ID:', savedItem._id);
+      console.log('Status:', savedItem.status);
 
       // Emit to all connected agents
-      io.emit('incoming-call', {
-        queueId: queueItem._id,
-        customerPhone: From,
-        customerName: From,
-        callSid: CallSid,
-        waitStartTime: new Date()
-      });
-
-      console.log('Emitted incoming-call event, queue item:', queueItem._id);
+      if (io) {
+        io.emit('incoming-call', {
+          queueId: savedItem._id,
+          customerPhone: From,
+          customerName: From,
+          callSid: CallSid,
+          waitStartTime: new Date()
+        });
+        console.log('Socket.io event emitted');
+      } else {
+        console.log('WARNING: io instance not found!');
+      }
+    } else {
+      console.log('ERROR: No users found in database!');
     }
 
     // Put caller on hold with music while waiting for agent
@@ -317,7 +350,9 @@ router.post('/incoming', async (req, res) => {
     }, `queue-${CallSid}`);
 
   } catch (error) {
-    console.error('Incoming call error:', error);
+    console.error('=== INCOMING CALL ERROR ===');
+    console.error('Error:', error.message);
+    console.error('Stack:', error.stack);
     response.say('Sorry, there was an error. Please try again later.');
   }
 
