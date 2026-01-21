@@ -141,6 +141,17 @@ export default function AgentQueuePage() {
         fetchQueue();
       });
 
+      // When another agent accepts a call, remove it from our queue instantly
+      socketRef.current.on('call-accepted', (data) => {
+        console.log('📞 Call accepted by agent:', data.agentName);
+        setQueue(prev => prev.filter(q => q._id !== data.queueId));
+        // Only show toast if it wasn't us who accepted
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        if (data.acceptedBy !== payload.userId) {
+          toast(`Call taken by ${data.agentName}`, { icon: '👤' });
+        }
+      });
+
     } catch (e) {
       console.error('Socket setup error:', e);
     }
@@ -195,8 +206,8 @@ export default function AgentQueuePage() {
 
   const handleAcceptCall = async (queueItem: QueueItem) => {
     try {
-      // First update the queue status
-      await queueAPI.acceptCall(queueItem._id);
+      // First update the queue status (atomic operation prevents race conditions)
+      const response = await queueAPI.acceptCall(queueItem._id);
 
       // Connect via Twilio Device (browser calling)
       if (phoneReady) {
@@ -216,8 +227,15 @@ export default function AgentQueuePage() {
         setQueue(prev => prev.filter(q => q._id !== queueItem._id));
         toast.success('Call accepted! (Browser phone not ready)');
       }
-    } catch (error) {
-      toast.error('Failed to accept call');
+    } catch (error: any) {
+      // Handle case where another agent already accepted the call
+      if (error.response?.status === 409) {
+        toast.error('Call already taken by another agent');
+        // Remove from our queue since it's no longer available
+        setQueue(prev => prev.filter(q => q._id !== queueItem._id));
+      } else {
+        toast.error('Failed to accept call');
+      }
     }
   };
 

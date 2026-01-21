@@ -133,39 +133,52 @@ router.get('/stats', auth, async (req, res) => {
 // @access  Private
 router.post('/accept/:queueId', auth, async (req, res) => {
   try {
-    const queueItem = await CallQueue.findOne({
-      _id: req.params.queueId,
-      userId: req.user._id,
-      status: 'waiting'
-    });
+    // Use findOneAndUpdate with atomic operation to prevent race conditions
+    // Only update if status is still 'waiting' - first agent wins!
+    const queueItem = await CallQueue.findOneAndUpdate(
+      {
+        _id: req.params.queueId,
+        status: 'waiting'  // Only accept if still waiting
+      },
+      {
+        $set: {
+          status: 'ringing',
+          answerTime: new Date(),
+          assignedAgent: req.user._id
+        }
+      },
+      { new: true }  // Return updated document
+    );
 
     if (!queueItem) {
-      return res.status(404).json({
+      return res.status(409).json({
         success: false,
-        message: 'Call not found in queue or already answered'
+        message: 'Call already taken by another agent'
       });
     }
 
-    // Update queue item status
-    queueItem.status = 'ringing';
-    queueItem.answerTime = new Date();
+    // Calculate wait duration
     queueItem.waitDuration = Math.floor(
       (new Date().getTime() - new Date(queueItem.waitStartTime).getTime()) / 1000
     );
     await queueItem.save();
 
-    // Emit event to update other agents
+    // Emit to ALL agents to remove this call from their queue
     const io = req.app.get('io');
-    io.to(`agent-${req.user._id}`).emit('queue-update', {
-      action: 'accepted',
-      queueId: queueItem._id
+    io.emit('call-accepted', {
+      queueId: queueItem._id,
+      acceptedBy: req.user._id,
+      agentName: req.user.name || req.user.email
     });
+
+    console.log(`Call ${queueItem._id} accepted by agent ${req.user.email}`);
 
     res.json({
       success: true,
       message: 'Call accepted',
       queueItem,
-      vapiCallId: queueItem.vapiCallId
+      vapiCallId: queueItem.vapiCallId,
+      twilioCallSid: queueItem.twilioCallSid
     });
   } catch (error) {
     console.error('Accept call error:', error);
