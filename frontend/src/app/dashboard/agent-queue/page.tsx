@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import DashboardLayout from '@/components/DashboardLayout';
 import { queueAPI } from '@/lib/api';
-import { Phone, PhoneOff, PhoneIncoming, Clock, Users, CheckCircle, XCircle, Mic, MicOff, Wifi, WifiOff } from 'lucide-react';
+import { Phone, PhoneOff, PhoneIncoming, Clock, Users, CheckCircle, XCircle, Mic, MicOff, Wifi, WifiOff, PhoneCall } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { io, Socket } from 'socket.io-client';
 import { useTwilioDevice } from '@/hooks/useTwilioDevice';
@@ -34,6 +34,8 @@ export default function AgentQueuePage() {
   const [isOnline, setIsOnline] = useState(false);
   const [activeQueueItem, setActiveQueueItem] = useState<QueueItem | null>(null);
   const [callDuration, setCallDuration] = useState(0);
+  const [testPhoneNumber, setTestPhoneNumber] = useState('');
+  const [isTestingCall, setIsTestingCall] = useState(false);
   const socketRef = useRef<Socket | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const callTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -249,6 +251,30 @@ export default function AgentQueuePage() {
     }
   };
 
+  const handleTestCall = async () => {
+    if (!testPhoneNumber) {
+      toast.error('Please enter a phone number');
+      return;
+    }
+
+    // Format phone number (add + if not present)
+    let formattedNumber = testPhoneNumber.trim();
+    if (!formattedNumber.startsWith('+')) {
+      formattedNumber = '+' + formattedNumber;
+    }
+
+    setIsTestingCall(true);
+    try {
+      await queueAPI.testCall(formattedNumber);
+      toast.success('Test call initiated! Your phone will ring shortly.');
+      setTestPhoneNumber('');
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || 'Failed to make test call');
+    } finally {
+      setIsTestingCall(false);
+    }
+  };
+
   if (loading) {
     return (
       <DashboardLayout>
@@ -279,6 +305,41 @@ export default function AgentQueuePage() {
             <span className={`w-3 h-3 rounded-full ${isOnline ? 'bg-green-500' : 'bg-gray-400'}`}></span>
             {isOnline ? 'Online' : 'Offline'}
           </button>
+        </div>
+
+        {/* Test Call Section */}
+        <div className="card p-4">
+          <div className="flex items-center gap-4">
+            <div className="flex-1">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Test Incoming Call</label>
+              <div className="flex gap-2">
+                <input
+                  type="tel"
+                  value={testPhoneNumber}
+                  onChange={(e) => setTestPhoneNumber(e.target.value)}
+                  placeholder="Enter your phone number (e.g., +917206534017)"
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                />
+                <button
+                  onClick={handleTestCall}
+                  disabled={isTestingCall || !isOnline}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all ${
+                    isTestingCall || !isOnline
+                      ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                      : 'bg-primary-600 text-white hover:bg-primary-700'
+                  }`}
+                >
+                  <PhoneCall className="h-4 w-4" />
+                  {isTestingCall ? 'Calling...' : 'Test Call'}
+                </button>
+              </div>
+              <p className="text-xs text-gray-500 mt-1">
+                {!isOnline
+                  ? 'Go online first to test incoming calls'
+                  : 'Twilio will call your phone, and it will appear in the queue below'}
+              </p>
+            </div>
+          </div>
         </div>
 
         {/* Stats Cards */}

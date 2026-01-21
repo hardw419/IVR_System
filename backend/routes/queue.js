@@ -11,6 +11,41 @@ const twilioAuthToken = process.env.TWILIO_AUTH_TOKEN;
 const twilioApiKey = process.env.TWILIO_API_KEY;
 const twilioApiSecret = process.env.TWILIO_API_SECRET;
 const twilioTwimlAppSid = process.env.TWILIO_TWIML_APP_SID;
+const twilioPhoneNumber = process.env.TWILIO_PHONE_NUMBER;
+
+// @route   POST /api/queue/test-call
+// @desc    Make a test call to simulate incoming call
+// @access  Private
+router.post('/test-call', auth, async (req, res) => {
+  try {
+    const { phoneNumber } = req.body;
+
+    if (!phoneNumber) {
+      return res.status(400).json({ success: false, message: 'Phone number is required' });
+    }
+
+    const client = twilio(twilioAccountSid, twilioAuthToken);
+
+    // Make outbound call that connects to the queue webhook
+    const call = await client.calls.create({
+      to: phoneNumber,
+      from: twilioPhoneNumber,
+      url: `${process.env.BACKEND_URL || 'https://ivr-system-backend.onrender.com'}/api/queue/incoming`,
+      method: 'POST'
+    });
+
+    console.log('Test call initiated:', call.sid);
+
+    res.json({
+      success: true,
+      message: 'Test call initiated! Your phone will ring shortly.',
+      callSid: call.sid
+    });
+  } catch (error) {
+    console.error('Test call error:', error);
+    res.status(500).json({ success: false, message: error.message || 'Failed to make test call' });
+  }
+});
 
 // @route   GET /api/queue
 // @desc    Get all waiting calls in queue
