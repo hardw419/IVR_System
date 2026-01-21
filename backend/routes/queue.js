@@ -57,18 +57,17 @@ router.post('/test-call', auth, async (req, res) => {
 // @access  Private
 router.get('/', auth, async (req, res) => {
   try {
-    console.log('=== QUEUE FETCH v3 - NO USER FILTER ==='); // Version marker
+    console.log('=== QUEUE FETCH v4 ===');
 
-    // Get all waiting calls - NO userId filter, all agents see all calls
-    const queue = await CallQueue.find({
-      status: { $in: ['waiting', 'ringing'] }
-    })
-    .sort({ priority: -1, waitStartTime: 1 });
+    // Use exact same query as debug endpoint
+    const allItems = await CallQueue.find({}).sort({ waitStartTime: -1 });
+    console.log('All items in DB:', allItems.length);
 
-    console.log('Found queue items:', queue.length);
-    if (queue.length > 0) {
-      console.log('First item:', JSON.stringify(queue[0]));
-    }
+    // Filter for waiting/ringing in JavaScript
+    const queue = allItems.filter(item =>
+      item.status === 'waiting' || item.status === 'ringing'
+    );
+    console.log('Waiting/ringing items:', queue.length);
 
     // Calculate wait time for each call
     const queueWithWaitTime = queue.map(item => ({
@@ -80,11 +79,12 @@ router.get('/', auth, async (req, res) => {
       success: true,
       queue: queueWithWaitTime,
       count: queue.length,
-      version: 'v3' // Version marker in response
+      totalInDb: allItems.length,
+      version: 'v4'
     });
   } catch (error) {
     console.error('Queue fetch error:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
+    res.status(500).json({ success: false, message: 'Server error', error: error.message });
   }
 });
 
