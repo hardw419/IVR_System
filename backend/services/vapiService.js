@@ -33,22 +33,19 @@ class VapiService {
 
       let payload;
 
-      // Transfer destination is now the Twilio Queue number (all calls go to browser queue)
-      const twilioQueueNumber = process.env.TWILIO_PHONE_NUMBER || '+17655236758';
+      // Transfer destination is the SECOND Twilio number (Agent Queue)
+      // This is DIFFERENT from the Vapi outbound number to avoid self-transfer issues
+      const twilioQueueNumber = process.env.TWILIO_QUEUE_NUMBER || '+18884706735';
 
-      // Single transfer destination - Twilio number which routes to Agent Queue
+      // Single transfer destination - Queue number which routes to Agent Queue
       const transferDestinations = [{
         type: 'number',
         number: twilioQueueNumber,
         message: 'Transferring you to an agent. Please hold.',
-        description: 'Transfer to Agent Queue',
-        transferPlan: {
-          mode: 'warm-transfer-say-message',
-          message: 'Transferring you to an agent. Please hold.'
-        }
+        description: 'Transfer to Agent Queue'
       }];
 
-      console.log('Transfer destination (Queue):', twilioQueueNumber);
+      console.log('Transfer destination (Queue Number):', twilioQueueNumber);
 
       // Build inline assistant with queue transfer
       const assistantConfig_final = {
