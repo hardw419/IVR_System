@@ -26,11 +26,16 @@ router.post('/test-call', auth, async (req, res) => {
 
     const client = twilio(twilioAccountSid, twilioAuthToken);
 
+    // Always use the public Render URL (Twilio cannot access localhost)
+    const webhookUrl = 'https://ivr-system-backend.onrender.com/api/queue/incoming';
+
+    console.log('Making test call to:', phoneNumber, 'with webhook:', webhookUrl);
+
     // Make outbound call that connects to the queue webhook
     const call = await client.calls.create({
       to: phoneNumber,
       from: twilioPhoneNumber,
-      url: `${process.env.BACKEND_URL || 'https://ivr-system-backend.onrender.com'}/api/queue/incoming`,
+      url: webhookUrl,
       method: 'POST'
     });
 
