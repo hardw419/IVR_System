@@ -57,16 +57,18 @@ router.post('/test-call', auth, async (req, res) => {
 // @access  Private
 router.get('/', auth, async (req, res) => {
   try {
-    console.log('=== QUEUE FETCH v2 ==='); // Version marker
+    console.log('=== QUEUE FETCH v3 - NO USER FILTER ==='); // Version marker
 
-    // Get all waiting calls (not filtered by userId - all agents see all calls)
+    // Get all waiting calls - NO userId filter, all agents see all calls
     const queue = await CallQueue.find({
       status: { $in: ['waiting', 'ringing'] }
     })
-    .populate('callId', 'scriptId transcript')
     .sort({ priority: -1, waitStartTime: 1 });
 
     console.log('Found queue items:', queue.length);
+    if (queue.length > 0) {
+      console.log('First item:', JSON.stringify(queue[0]));
+    }
 
     // Calculate wait time for each call
     const queueWithWaitTime = queue.map(item => ({
@@ -78,7 +80,7 @@ router.get('/', auth, async (req, res) => {
       success: true,
       queue: queueWithWaitTime,
       count: queue.length,
-      version: 'v2' // Version marker in response
+      version: 'v3' // Version marker in response
     });
   } catch (error) {
     console.error('Queue fetch error:', error);
