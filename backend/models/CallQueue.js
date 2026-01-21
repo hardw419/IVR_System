@@ -3,12 +3,13 @@ const mongoose = require('mongoose');
 const callQueueSchema = new mongoose.Schema({
   callId: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'Call',
-    required: true
+    ref: 'Call'
   },
   vapiCallId: {
-    type: String,
-    required: true
+    type: String
+  },
+  twilioCallSid: {
+    type: String
   },
   userId: {
     type: mongoose.Schema.Types.ObjectId,
@@ -63,6 +64,7 @@ const callQueueSchema = new mongoose.Schema({
 // Index for efficient queries
 callQueueSchema.index({ userId: 1, status: 1, waitStartTime: 1 });
 callQueueSchema.index({ vapiCallId: 1 });
+callQueueSchema.index({ twilioCallSid: 1 });
 
 module.exports = mongoose.model('CallQueue', callQueueSchema);
 

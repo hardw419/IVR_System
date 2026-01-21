@@ -196,7 +196,7 @@ router.get('/token', auth, async (req, res) => {
 });
 
 // @route   POST /api/queue/voice
-// @desc    TwiML webhook for browser calls
+// @desc    TwiML webhook for browser calls (outgoing from agent)
 // @access  Public (Twilio webhook)
 router.post('/voice', async (req, res) => {
   const VoiceResponse = twilio.twiml.VoiceResponse;
@@ -221,6 +221,136 @@ router.post('/voice', async (req, res) => {
 
   res.type('text/xml');
   res.send(response.toString());
+});
+
+// @route   POST /api/queue/incoming
+// @desc    Webhook for incoming calls to Twilio number - rings in browser
+// @access  Public (Twilio webhook)
+router.post('/incoming', async (req, res) => {
+  const VoiceResponse = twilio.twiml.VoiceResponse;
+  const response = new VoiceResponse();
+
+  const { From, To, CallSid } = req.body;
+  console.log('Incoming call from:', From, 'to:', To, 'CallSid:', CallSid);
+
+  try {
+    // Get the io instance
+    const io = req.app.get('io');
+
+    // Create queue item for this incoming call
+    // For now, we'll associate with first user - in production, map by phone number
+    const User = require('../models/User');
+    const user = await User.findOne(); // Get first user for demo
+
+    if (user) {
+      const queueItem = new CallQueue({
+        userId: user._id,
+        customerPhone: From,
+        customerName: From, // Could be looked up from CRM
+        keyPressed: 'direct',
+        status: 'waiting',
+        waitStartTime: new Date(),
+        twilioCallSid: CallSid,
+        priority: 1
+      });
+      await queueItem.save();
+
+      // Emit to all connected agents
+      io.emit('incoming-call', {
+        queueId: queueItem._id,
+        customerPhone: From,
+        customerName: From,
+        callSid: CallSid,
+        waitStartTime: new Date()
+      });
+
+      console.log('Emitted incoming-call event, queue item:', queueItem._id);
+    }
+
+    // Put caller on hold with music while waiting for agent
+    response.say({ voice: 'alice' }, 'Please wait while we connect you to an agent.');
+
+    // Play hold music and wait for agent to dial in
+    response.enqueue({
+      waitUrl: '/api/queue/hold-music',
+      action: '/api/queue/enqueue-result'
+    }, `queue-${CallSid}`);
+
+  } catch (error) {
+    console.error('Incoming call error:', error);
+    response.say('Sorry, there was an error. Please try again later.');
+  }
+
+  res.type('text/xml');
+  res.send(response.toString());
+});
+
+// @route   POST /api/queue/hold-music
+// @desc    TwiML for hold music while waiting
+// @access  Public (Twilio webhook)
+router.post('/hold-music', (req, res) => {
+  const VoiceResponse = twilio.twiml.VoiceResponse;
+  const response = new VoiceResponse();
+
+  // Play hold music
+  response.play({ loop: 10 }, 'https://api.twilio.com/cowbell.mp3');
+  response.say({ voice: 'alice' }, 'Thank you for your patience. An agent will be with you shortly.');
+
+  res.type('text/xml');
+  res.send(response.toString());
+});
+
+// @route   POST /api/queue/enqueue-result
+// @desc    Handle queue result (call answered or abandoned)
+// @access  Public (Twilio webhook)
+router.post('/enqueue-result', async (req, res) => {
+  const { QueueResult, CallSid } = req.body;
+  console.log('Queue result:', QueueResult, 'for CallSid:', CallSid);
+
+  try {
+    const status = QueueResult === 'bridged' ? 'answered' : 'abandoned';
+    await CallQueue.findOneAndUpdate(
+      { twilioCallSid: CallSid },
+      { status, endTime: new Date() }
+    );
+  } catch (error) {
+    console.error('Enqueue result error:', error);
+  }
+
+  const VoiceResponse = twilio.twiml.VoiceResponse;
+  const response = new VoiceResponse();
+  res.type('text/xml');
+  res.send(response.toString());
+});
+
+// @route   POST /api/queue/connect/:callSid
+// @desc    Agent connects to queued call
+// @access  Private
+router.post('/connect/:callSid', auth, async (req, res) => {
+  try {
+    const client = twilio(twilioAccountSid, twilioAuthToken);
+    const { callSid } = req.params;
+
+    // Update the call to connect to the queue
+    await client.calls(callSid).update({
+      twiml: `<Response><Dial><Queue>queue-${callSid}</Queue></Dial></Response>`
+    });
+
+    // Update queue item
+    await CallQueue.findOneAndUpdate(
+      { twilioCallSid: callSid },
+      {
+        status: 'answered',
+        answerTime: new Date(),
+        agentId: req.user._id
+      }
+    );
+
+    res.json({ success: true, message: 'Connected to call' });
+  } catch (error) {
+    console.error('Connect call error:', error);
+    res.status(500).json({ success: false, message: 'Failed to connect' });
+  }
 });
 
 module.exports = router;

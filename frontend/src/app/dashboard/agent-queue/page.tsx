@@ -16,7 +16,8 @@ interface QueueItem {
   status: string;
   currentWaitTime: number;
   waitStartTime: string;
-  vapiCallId: string;
+  vapiCallId?: string;
+  twilioCallSid?: string;
 }
 
 interface QueueStats {
@@ -45,9 +46,29 @@ export default function AgentQueuePage() {
     error: phoneError,
     initializeDevice,
     makeCall,
+    acceptCall,
     hangUp,
     toggleMute
   } = useTwilioDevice({
+    onIncomingCall: (call) => {
+      // When a call comes directly to the browser
+      console.log('📞 Incoming call in browser from:', call.parameters.From);
+      toast.success(`🔔 Incoming call from ${call.parameters.From}`, { duration: 10000 });
+
+      // Auto-accept if agent is online, or show in queue
+      if (isOnline && !activeQueueItem) {
+        acceptCall(call);
+        setActiveQueueItem({
+          _id: 'browser-call-' + Date.now(),
+          customerPhone: call.parameters.From || 'Unknown',
+          customerName: call.parameters.From || 'Unknown Caller',
+          keyPressed: 'direct',
+          status: 'answered',
+          currentWaitTime: 0,
+          waitStartTime: new Date().toISOString(),
+        });
+      }
+    },
     onCallDisconnected: () => {
       setActiveQueueItem(null);
       setCallDuration(0);
@@ -95,6 +116,23 @@ export default function AgentQueuePage() {
         console.log('📞 New call in queue:', data);
         toast.success(`New call from ${data.customerName || data.customerPhone}`);
         fetchQueue();
+      });
+
+      socketRef.current.on('incoming-call', (data) => {
+        console.log('📞 Incoming call:', data);
+        // Play sound or show notification
+        toast.success(`🔔 Incoming call from ${data.customerPhone}`, { duration: 10000 });
+        // Add to queue immediately
+        setQueue(prev => [{
+          _id: data.queueId,
+          customerPhone: data.customerPhone,
+          customerName: data.customerName,
+          keyPressed: 'direct',
+          status: 'waiting',
+          currentWaitTime: 0,
+          waitStartTime: data.waitStartTime,
+          twilioCallSid: data.callSid
+        }, ...prev]);
       });
 
       socketRef.current.on('queue-update', () => {
@@ -160,11 +198,15 @@ export default function AgentQueuePage() {
 
       // Connect via Twilio Device (browser calling)
       if (phoneReady) {
-        const call = await makeCall(queueItem.vapiCallId);
-        if (call) {
-          setActiveQueueItem(queueItem);
-          setQueue(prev => prev.filter(q => q._id !== queueItem._id));
-          toast.success('Connecting to call...');
+        // Use twilioCallSid for direct calls, vapiCallId for Vapi transfers
+        const callId = queueItem.twilioCallSid || queueItem.vapiCallId;
+        if (callId) {
+          const call = await makeCall(callId);
+          if (call) {
+            setActiveQueueItem(queueItem);
+            setQueue(prev => prev.filter(q => q._id !== queueItem._id));
+            toast.success('Connecting to call...');
+          }
         }
       } else {
         // Fallback - just mark as accepted without browser calling

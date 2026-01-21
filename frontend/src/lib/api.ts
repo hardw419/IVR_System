@@ -91,5 +91,6 @@ export const queueAPI = {
   acceptCall: (queueId: string) => api.post(`/queue/accept/${queueId}`),
   completeCall: (queueId: string, notes?: string) => api.post(`/queue/complete/${queueId}`, { notes }),
   getToken: () => api.get('/queue/token'),
+  connectCall: (callSid: string) => api.post(`/queue/connect/${callSid}`),
 };
 
