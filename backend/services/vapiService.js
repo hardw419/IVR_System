@@ -14,8 +14,6 @@ class VapiService {
       const vapiAssistantId = process.env.VAPI_ASSISTANT_ID;
 
       // Build transfer instructions for the AI - now transfers to queue, not individual agents
-      const twilioQueueNumber = process.env.TWILIO_PHONE_NUMBER || '+17655236758';
-
       let transferInstructions = `\n\nCALL TRANSFER TO HUMAN AGENT:\nIf the customer wants to speak with a human agent, requests to be transferred, or asks for human support, use the transferCall tool to transfer them to the agent queue. Say: "I'll transfer you to one of our agents now. Please hold."`;
 
       const systemPrompt = (script.systemPrompt || '') + transferInstructions;
