@@ -69,7 +69,10 @@ class VapiService {
         recordingEnabled: true,
         endCallFunctionEnabled: true,
         dialKeypadFunctionEnabled: true,
-        serverUrl: process.env.VAPI_WEBHOOK_URL || `${process.env.BACKEND_URL || 'http://localhost:5000'}/api/webhooks/vapi`
+        // Always use Render URL for Vapi webhook (not localhost)
+        serverUrl: process.env.RENDER_EXTERNAL_URL
+          ? `${process.env.RENDER_EXTERNAL_URL}/api/webhooks/vapi`
+          : (process.env.VAPI_WEBHOOK_URL || 'https://ivr-system-backend.onrender.com/api/webhooks/vapi')
       };
 
       // Always add transfer tool - routes to Agent Queue via Twilio number

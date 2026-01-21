@@ -132,47 +132,66 @@ router.post('/vapi', async (req, res) => {
       if (functionCall?.name === 'transferCall' || functionCall?.name === 'transfer_call_tool') {
         const call = vapiCall?.id ? await Call.findOne({ vapiCallId: vapiCall.id }) : null;
 
-        if (call) {
-          // Get the destination from function parameters or find agent
-          const params = functionCall.parameters || {};
-          let transferNumber = params.destination || params.number;
-          let agentName = 'Agent';
+        console.log('📞 Transfer requested for call:', vapiCall?.id);
+        console.log('Call found in DB:', call ? call._id : 'Not found');
 
-          // Find the agent by phone number or get first available
-          let agent = null;
-          if (transferNumber) {
-            agent = await Agent.findOne({
-              userId: call.userId,
-              phoneNumber: transferNumber
+        // Create queue entry for this transfer request
+        const User = require('../models/User');
+        const users = await User.find({});
+        const user = call?.userId ? { _id: call.userId } : (users[0] || null);
+
+        if (user) {
+          // Create queue entry
+          const queueEntry = new CallQueue({
+            callId: call?._id,
+            vapiCallId: vapiCall?.id,
+            userId: user._id,
+            customerPhone: call?.customerPhone || vapiCall?.customer?.number || 'Unknown',
+            customerName: call?.customerName || vapiCall?.customer?.number || 'Unknown Caller',
+            keyPressed: 'transfer',
+            status: 'waiting',
+            waitStartTime: new Date(),
+            priority: 2  // Higher priority for transfer requests
+          });
+
+          const savedEntry = await queueEntry.save();
+          console.log('📋 Queue entry created:', savedEntry._id);
+
+          // Emit socket event to notify agents
+          const io = req.app.get('io');
+          if (io) {
+            io.emit('incoming-call', {
+              queueId: savedEntry._id,
+              customerPhone: queueEntry.customerPhone,
+              customerName: queueEntry.customerName,
+              vapiCallId: vapiCall?.id,
+              waitStartTime: new Date(),
+              isVapiTransfer: true
             });
+            console.log('🔔 Socket event emitted to agents');
           }
 
-          if (!agent) {
-            agent = await Agent.findOne({
-              userId: call.userId,
-              isAvailable: true
-            });
-            if (agent) {
-              transferNumber = agent.phoneNumber;
-            }
-          }
-
-          if (agent) {
-            agentName = agent.name;
-          }
-
-          if (transferNumber) {
-            console.log(`📞 Function transfer to: ${agentName} at ${transferNumber}`);
-            call.status = 'transferred';
-            call.transferredTo = transferNumber;
-            call.transferDetails = {
-              agentName: agentName,
-              agentPhone: transferNumber,
-              transferTime: new Date(),
-              transferStatus: 'initiated'
-            };
+          // Update call status
+          if (call) {
+            call.status = 'in-queue';
+            call.keyPressed = 'transfer';
             await call.save();
           }
+
+          // Return response to Vapi - transfer to queue number
+          const queueNumber = process.env.TWILIO_QUEUE_NUMBER || '+18884706735';
+          console.log('📱 Returning transfer destination:', queueNumber);
+
+          return res.json({
+            results: [{
+              result: 'transfer',
+              destination: {
+                type: 'number',
+                number: queueNumber,
+                message: 'Transferring you to an agent. Please hold.'
+              }
+            }]
+          });
         }
 
         return res.json({ result: 'Transfer initiated' });
