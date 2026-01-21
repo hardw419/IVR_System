@@ -304,6 +304,42 @@ router.get('/debug', async (req, res) => {
   }
 });
 
+// @route   POST /api/queue/vapi-transfer-twiml
+// @desc    TwiML endpoint for Vapi transfer - puts caller in Twilio queue
+// @access  Public (Twilio webhook)
+router.post('/vapi-transfer-twiml', async (req, res) => {
+  const VoiceResponse = twilio.twiml.VoiceResponse;
+  const response = new VoiceResponse();
+
+  const queueId = req.query.queueId;
+  console.log('=== VAPI TRANSFER TWIML ===');
+  console.log('Queue ID:', queueId);
+
+  try {
+    // Play a message and put caller in queue
+    response.say({ voice: 'alice', language: 'en-US' },
+      'Please hold while we connect you with an agent.');
+
+    // Enqueue the caller in "AgentQueue"
+    response.enqueue({
+      waitUrl: 'https://ivr-system-backend.onrender.com/api/queue/hold-music',
+      waitUrlMethod: 'POST',
+      action: 'https://ivr-system-backend.onrender.com/api/queue/queue-result',
+      method: 'POST'
+    }, 'AgentQueue');
+
+    console.log('TwiML Response:', response.toString());
+    res.type('text/xml');
+    res.send(response.toString());
+  } catch (error) {
+    console.error('Vapi transfer TwiML error:', error);
+    response.say('An error occurred. Please try again.');
+    response.hangup();
+    res.type('text/xml');
+    res.send(response.toString());
+  }
+});
+
 // @route   POST /api/queue/incoming
 // @desc    Webhook for incoming calls to Twilio number - rings in browser
 // @access  Public (Twilio webhook)

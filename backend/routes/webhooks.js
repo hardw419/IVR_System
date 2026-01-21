@@ -128,11 +128,13 @@ router.post('/vapi', async (req, res) => {
     if (type === 'function-call') {
       const functionCall = message.functionCall || body.functionCall;
       console.log('🔧 Function call received:', functionCall);
+      console.log('📞 Full vapiCall object:', JSON.stringify(vapiCall, null, 2));
 
       if (functionCall?.name === 'transferCall' || functionCall?.name === 'transfer_call_tool') {
         const call = vapiCall?.id ? await Call.findOne({ vapiCallId: vapiCall.id }) : null;
 
         console.log('📞 Transfer requested for call:', vapiCall?.id);
+        console.log('📞 Vapi phoneCallProviderId (Twilio SID):', vapiCall?.phoneCallProviderId);
         console.log('Call found in DB:', call ? call._id : 'Not found');
 
         // Create queue entry for this transfer request
@@ -178,9 +180,42 @@ router.post('/vapi', async (req, res) => {
             await call.save();
           }
 
-          // Return response to Vapi - transfer to queue number
+          // Try to use Twilio API to redirect the call directly
           const queueNumber = process.env.TWILIO_QUEUE_NUMBER || '+18884706735';
-          console.log('📱 Returning transfer destination:', queueNumber);
+          const twilioCallSid = vapiCall?.phoneCallProviderId;
+
+          if (twilioCallSid) {
+            console.log('📱 Attempting Twilio redirect for SID:', twilioCallSid);
+            try {
+              // Update the call to dial the queue number with Enqueue
+              const twilioClient = twilio(
+                process.env.TWILIO_ACCOUNT_SID,
+                process.env.TWILIO_AUTH_TOKEN
+              );
+
+              // Create TwiML that puts caller in queue
+              const twimlUrl = `https://ivr-system-backend.onrender.com/api/queue/vapi-transfer-twiml?queueId=${savedEntry._id}`;
+
+              await twilioClient.calls(twilioCallSid).update({
+                url: twimlUrl,
+                method: 'POST'
+              });
+
+              console.log('✅ Twilio call redirected successfully!');
+
+              return res.json({
+                results: [{
+                  result: 'Call is being transferred to agent queue.',
+                  forwardingPhoneNumber: queueNumber
+                }]
+              });
+            } catch (twilioError) {
+              console.error('❌ Twilio redirect failed:', twilioError.message);
+              // Fall back to Vapi's transfer
+            }
+          }
+
+          console.log('📱 Returning transfer destination to Vapi:', queueNumber);
 
           return res.json({
             results: [{
