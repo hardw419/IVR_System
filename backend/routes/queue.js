@@ -249,25 +249,27 @@ router.post('/voice', async (req, res) => {
   const VoiceResponse = twilio.twiml.VoiceResponse;
   const response = new VoiceResponse();
 
-  const { To, From, vapiCallId } = req.body;
+  console.log('=== VOICE WEBHOOK (Agent Browser Call) ===');
+  console.log('Request body:', JSON.stringify(req.body));
 
-  if (To && vapiCallId) {
-    // Agent is answering a queued call - connect to Vapi call
-    const dial = response.dial({
-      callerId: From
-    });
+  const { To, vapiCallId } = req.body;
 
-    // Connect to the original Vapi call via conference
-    dial.conference({
-      startConferenceOnEnter: true,
-      endConferenceOnExit: true
-    }, `queue-${vapiCallId}`);
+  // vapiCallId contains the CallSid of the queued call
+  if (vapiCallId) {
+    console.log('Agent connecting to queue:', `queue-${vapiCallId}`);
+
+    // Connect agent to the Twilio Queue where customer is waiting
+    const dial = response.dial();
+    dial.queue(`queue-${vapiCallId}`);
   } else {
+    console.log('No vapiCallId provided');
     response.say('No call to connect to.');
   }
 
   res.type('text/xml');
-  res.send(response.toString());
+  const twiml = response.toString();
+  console.log('TwiML response:', twiml);
+  res.send(twiml);
 });
 
 // @route   GET /api/queue/debug
