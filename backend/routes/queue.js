@@ -311,10 +311,15 @@ router.post('/incoming', async (req, res) => {
   const VoiceResponse = twilio.twiml.VoiceResponse;
   const response = new VoiceResponse();
 
-  const { From, To, CallSid } = req.body;
+  const { From, To, CallSid, Direction, ParentCallSid } = req.body;
   console.log('=== INCOMING CALL WEBHOOK ===');
   console.log('From:', From, 'To:', To, 'CallSid:', CallSid);
+  console.log('Direction:', Direction, 'ParentCallSid:', ParentCallSid);
   console.log('Full request body:', JSON.stringify(req.body));
+
+  // Check if this is a Vapi transfer (has ParentCallSid or specific pattern)
+  const isVapiTransfer = !!ParentCallSid || Direction === 'outbound-api';
+  console.log('Is Vapi Transfer:', isVapiTransfer);
 
   try {
     // Get the io instance
@@ -329,30 +334,53 @@ router.post('/incoming', async (req, res) => {
       const user = users[0]; // Use first user for now
       console.log('Using user:', user._id, user.email);
 
+      // Try to find the original call from Vapi if this is a transfer
+      let customerName = From || 'Unknown Caller';
+      let callSource = 'direct';
+
+      if (isVapiTransfer) {
+        callSource = 'vapi-transfer';
+        // Try to find the original call in our database
+        const Call = require('../models/Call');
+        const originalCall = await Call.findOne({
+          $or: [
+            { twilioCallSid: ParentCallSid },
+            { customerPhone: From }
+          ]
+        }).sort({ createdAt: -1 });
+
+        if (originalCall) {
+          customerName = originalCall.customerName || From;
+          console.log('Found original Vapi call:', originalCall._id, customerName);
+        }
+      }
+
       const queueItem = new CallQueue({
         userId: user._id,
         customerPhone: From || 'Unknown',
-        customerName: From || 'Unknown Caller',
-        keyPressed: 'direct',
+        customerName: customerName,
+        keyPressed: callSource,
         status: 'waiting',
         waitStartTime: new Date(),
         twilioCallSid: CallSid,
-        priority: 1
+        priority: isVapiTransfer ? 2 : 1  // Higher priority for Vapi transfers
       });
 
       const savedItem = await queueItem.save();
       console.log('=== QUEUE ITEM SAVED ===');
       console.log('Queue ID:', savedItem._id);
       console.log('Status:', savedItem.status);
+      console.log('Source:', callSource);
 
       // Emit to all connected agents
       if (io) {
         io.emit('incoming-call', {
           queueId: savedItem._id,
           customerPhone: From,
-          customerName: From,
+          customerName: customerName,
           callSid: CallSid,
-          waitStartTime: new Date()
+          waitStartTime: new Date(),
+          isVapiTransfer: isVapiTransfer
         });
         console.log('Socket.io event emitted');
       } else {
