@@ -57,8 +57,8 @@ router.post('/test-call', auth, async (req, res) => {
 // @access  Private
 router.get('/', auth, async (req, res) => {
   try {
+    // Get all waiting calls (not filtered by userId for now - all agents see all calls)
     const queue = await CallQueue.find({
-      userId: req.user._id,
       status: { $in: ['waiting', 'ringing'] }
     })
     .populate('callId', 'scriptId transcript')

@@ -162,8 +162,8 @@ export default function AgentQueuePage() {
       })));
     }, 1000);
 
-    // Fetch fresh data every 10 seconds
-    const fetchInterval = setInterval(fetchQueue, 10000);
+    // Fetch fresh data every 3 seconds (faster for real-time updates)
+    const fetchInterval = setInterval(fetchQueue, 3000);
 
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
