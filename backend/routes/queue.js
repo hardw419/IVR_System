@@ -349,9 +349,11 @@ router.post('/incoming', async (req, res) => {
     response.say({ voice: 'alice' }, 'Please wait while we connect you to an agent.');
 
     // Play hold music and wait for agent to dial in
+    // Use absolute URLs for Twilio webhooks
+    const baseUrl = process.env.RENDER_EXTERNAL_URL || 'https://ivr-system-backend.onrender.com';
     response.enqueue({
-      waitUrl: '/api/queue/hold-music',
-      action: '/api/queue/enqueue-result'
+      waitUrl: `${baseUrl}/api/queue/hold-music`,
+      action: `${baseUrl}/api/queue/enqueue-result`
     }, `queue-${CallSid}`);
 
   } catch (error) {
