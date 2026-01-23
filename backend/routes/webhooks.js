@@ -233,20 +233,27 @@ router.post('/vapi', async (req, res) => {
 
           // NOTE: We cannot redirect Vapi's Twilio call because it's on VAPI's Twilio account, not ours.
           // Instead, we tell Vapi to transfer to our number, and we handle it when the call arrives.
+          // IMPORTANT: For Vapi to actually transfer, 'destination' must be at ROOT level, not inside 'results'
 
           console.log('📱 Telling Vapi to transfer to our queue number:', queueNumber);
           console.log('📱 Queue entry ID for matching:', savedEntry._id);
           console.log('📱 VapiCallId for matching:', vapiCall?.id);
 
+          // Vapi expects destination at root level for transfers
           return res.json({
             results: [{
-              result: 'transfer',
-              destination: {
-                type: 'number',
-                number: queueNumber,
-                message: 'Transferring you to an agent. Please hold.'
+              toolCallId: transferCall.id,
+              result: 'Transferring to agent queue now.'
+            }],
+            // Destination MUST be at root level for Vapi to execute transfer!
+            destination: {
+              type: 'number',
+              number: queueNumber,
+              message: 'Transferring you to an agent. Please hold.',
+              transferPlan: {
+                mode: 'blind-transfer'
               }
-            }]
+            }
           });
         }
 
