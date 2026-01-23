@@ -116,7 +116,13 @@ router.post('/vapi', async (req, res) => {
   try {
     const body = req.body;
 
-    console.log('Vapi webhook received:', JSON.stringify(body, null, 2));
+    // Log EVERY webhook event with clear markers
+    console.log('');
+    console.log('╔════════════════════════════════════════════════════════════╗');
+    console.log('║              VAPI WEBHOOK RECEIVED                          ║');
+    console.log('╚════════════════════════════════════════════════════════════╝');
+    console.log('Raw body type:', typeof body);
+    console.log('Body keys:', Object.keys(body));
 
     // Handle different webhook formats
     const message = body.message || body;
@@ -124,8 +130,13 @@ router.post('/vapi', async (req, res) => {
     const vapiCall = message.call || body.call;
     const digit = message.digit || body.digit;
 
+    console.log('📩 Event Type:', type);
+    console.log('📞 Has call object:', !!vapiCall);
+    console.log('📋 Message keys:', Object.keys(message));
+
     // Handle function-call for transfer
     if (type === 'function-call') {
+      console.log('🎉 FUNCTION-CALL EVENT DETECTED!');
       const functionCall = message.functionCall || body.functionCall;
       console.log('🔧 Function call received:', JSON.stringify(functionCall, null, 2));
       console.log('📞 Full vapiCall object:', JSON.stringify(vapiCall, null, 2));
