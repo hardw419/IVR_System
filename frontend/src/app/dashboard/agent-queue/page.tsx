@@ -124,7 +124,7 @@ export default function AgentQueuePage() {
         console.log('📞 Incoming call:', data);
         // Play sound or show notification
         toast.success(`🔔 Incoming call from ${data.customerPhone}`, { duration: 10000 });
-        // Add to queue immediately - include BOTH vapiCallId and twilioCallSid
+        // Add to queue immediately - use twilioCallSid for queue matching
         setQueue(prev => [{
           _id: data.queueId,
           customerPhone: data.customerPhone,
@@ -133,8 +133,7 @@ export default function AgentQueuePage() {
           status: 'waiting',
           currentWaitTime: 0,
           waitStartTime: data.waitStartTime,
-          vapiCallId: data.vapiCallId,  // Include vapiCallId for queue matching
-          twilioCallSid: data.callSid
+          twilioCallSid: data.twilioCallSid || data.callSid  // Use twilioCallSid for queue connection
         }, ...prev]);
       });
 
@@ -212,11 +211,9 @@ export default function AgentQueuePage() {
 
       // Connect via Twilio Device (browser calling)
       if (phoneReady) {
-        // For Vapi transfers, use vapiCallId (matches the queue name)
-        // For direct calls, use twilioCallSid
-        // Priority: vapiCallId first, since queue name is queue-{vapiCallId}
-        const callId = queueItem.vapiCallId || queueItem.twilioCallSid;
-        console.log('🔗 Connecting with callId:', callId, 'vapiCallId:', queueItem.vapiCallId, 'twilioCallSid:', queueItem.twilioCallSid);
+        // Use twilioCallSid - this matches the queue name where customer is waiting
+        const callId = queueItem.twilioCallSid;
+        console.log('🔗 Connecting with twilioCallSid:', callId);
         if (callId) {
           const call = await makeCall(callId);
           if (call) {
@@ -224,6 +221,8 @@ export default function AgentQueuePage() {
             setQueue(prev => prev.filter(q => q._id !== queueItem._id));
             toast.success('Connecting to call...');
           }
+        } else {
+          toast.error('No call ID available');
         }
       } else {
         // Fallback - just mark as accepted without browser calling

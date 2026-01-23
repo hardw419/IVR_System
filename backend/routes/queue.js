@@ -297,20 +297,23 @@ router.post('/voice', async (req, res) => {
   const VoiceResponse = twilio.twiml.VoiceResponse;
   const response = new VoiceResponse();
 
-  console.log('=== VOICE WEBHOOK (Agent Browser Call) ===');
+  console.log('=== VOICE WEBHOOK v2 (Agent Browser Call) ===');
   console.log('Request body:', JSON.stringify(req.body));
 
-  const { To, vapiCallId } = req.body;
+  // vapiCallId parameter contains the TwilioCallSid of the queued call
+  // This is sent from the frontend when agent accepts
+  const { vapiCallId } = req.body;
+  const callSid = vapiCallId; // The parameter is named vapiCallId but contains TwilioCallSid
 
-  // vapiCallId contains the CallSid of the queued call
-  if (vapiCallId) {
-    console.log('Agent connecting to queue:', `queue-${vapiCallId}`);
+  if (callSid) {
+    const queueName = `queue-${callSid}`;
+    console.log('Agent connecting to queue:', queueName);
 
     // Connect agent to the Twilio Queue where customer is waiting
     const dial = response.dial();
-    dial.queue(`queue-${vapiCallId}`);
+    dial.queue(queueName);
   } else {
-    console.log('No vapiCallId provided');
+    console.log('❌ No callSid provided in request');
     response.say('No call to connect to.');
   }
 
@@ -401,12 +404,12 @@ router.post('/incoming', async (req, res) => {
   const { From, To, CallSid, Direction, ParentCallSid } = req.body;
   console.log('');
   console.log('╔═══════════════════════════════════════════════════════════╗');
-  console.log('║              INCOMING CALL WEBHOOK                         ║');
+  console.log('║              INCOMING CALL WEBHOOK v2                      ║');
   console.log('╚═══════════════════════════════════════════════════════════╝');
   console.log('From:', From, 'To:', To, 'CallSid:', CallSid);
   console.log('Direction:', Direction, 'ParentCallSid:', ParentCallSid);
 
-  // Check if this is a Vapi transfer (has ParentCallSid or specific pattern)
+  // Check if this is a Vapi transfer (has ParentCallSid means it's a transferred call)
   const isVapiTransfer = !!ParentCallSid || Direction === 'outbound-api';
   console.log('Is Vapi Transfer:', isVapiTransfer);
 
@@ -416,40 +419,12 @@ router.post('/incoming', async (req, res) => {
     const users = await User.find({});
 
     let queueItem = null;
-    let queueName = `queue-${CallSid}`; // Default queue name
+    // ALWAYS use CallSid for queue name - this is what we'll tell the agent to connect to
+    const queueName = `queue-${CallSid}`;
+    console.log('Queue name will be:', queueName);
 
-    if (isVapiTransfer) {
-      console.log('🔍 Looking for existing queue entry from Vapi transfer...');
-
-      // First, try to find an existing queue entry created by the Vapi webhook
-      // Match by customer phone number and status=waiting, created in last 2 minutes
-      const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000);
-      queueItem = await CallQueue.findOne({
-        customerPhone: From,
-        status: 'waiting',
-        keyPressed: 'transfer',
-        waitStartTime: { $gt: twoMinutesAgo }
-      }).sort({ waitStartTime: -1 });
-
-      if (queueItem) {
-        console.log('✅ Found existing queue entry from Vapi transfer!');
-        console.log('Queue ID:', queueItem._id);
-        console.log('VapiCallId:', queueItem.vapiCallId);
-
-        // Update with new Twilio CallSid
-        queueItem.twilioCallSid = CallSid;
-        await queueItem.save();
-
-        // Use vapiCallId for queue name so agent can connect
-        queueName = `queue-${queueItem.vapiCallId}`;
-        console.log('Using queue name:', queueName);
-      } else {
-        console.log('⚠️ No existing queue entry found, creating new one');
-      }
-    }
-
-    // If no existing queue entry, create a new one
-    if (!queueItem && users.length > 0) {
+    // Create queue entry for this incoming call
+    if (users.length > 0) {
       const user = users[0];
       let customerName = From || 'Unknown Caller';
 
@@ -470,12 +445,13 @@ router.post('/incoming', async (req, res) => {
         keyPressed: isVapiTransfer ? 'vapi-transfer' : 'direct',
         status: 'waiting',
         waitStartTime: new Date(),
-        twilioCallSid: CallSid,
+        twilioCallSid: CallSid,  // Store the CallSid - this matches the queue name!
         priority: isVapiTransfer ? 2 : 1
       });
 
       await queueItem.save();
-      console.log('📋 New queue entry created:', queueItem._id);
+      console.log('📋 Queue entry created:', queueItem._id);
+      console.log('📋 TwilioCallSid stored:', CallSid);
     }
 
     // Emit to all connected agents
@@ -485,7 +461,7 @@ router.post('/incoming', async (req, res) => {
         customerPhone: From,
         customerName: queueItem.customerName,
         callSid: CallSid,
-        vapiCallId: queueItem.vapiCallId,
+        twilioCallSid: CallSid,  // Send this for agent to connect with
         waitStartTime: new Date(),
         isVapiTransfer: isVapiTransfer
       });
@@ -495,7 +471,7 @@ router.post('/incoming', async (req, res) => {
     // Put caller on hold with music
     response.say({ voice: 'alice' }, 'Please wait while we connect you to an agent.');
 
-    // Enqueue the caller - use the correct queue name
+    // Enqueue the caller - use CallSid-based queue name
     const baseUrl = 'https://ivr-system-backend.onrender.com';
     console.log('📞 Enqueuing caller in:', queueName);
     response.enqueue({
