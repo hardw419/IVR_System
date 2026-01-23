@@ -36,7 +36,6 @@ export default function AgentQueuePage() {
   const [callDuration, setCallDuration] = useState(0);
   const [testPhoneNumber, setTestPhoneNumber] = useState('');
   const [isTestingCall, setIsTestingCall] = useState(false);
-  const [isTestingIncoming, setIsTestingIncoming] = useState(false);
   const socketRef = useRef<Socket | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const callTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -297,19 +296,6 @@ export default function AgentQueuePage() {
     }
   };
 
-  // Test incoming call - simulates Vapi transfer by calling the queue number
-  const handleTestIncoming = async () => {
-    setIsTestingIncoming(true);
-    try {
-      const response = await queueAPI.testIncoming();
-      toast.success(response.data.message || 'Test incoming call initiated! Check the queue.');
-    } catch (error: any) {
-      toast.error(error.response?.data?.message || 'Failed to test incoming call');
-    } finally {
-      setIsTestingIncoming(false);
-    }
-  };
-
   if (loading) {
     return (
       <DashboardLayout>
@@ -367,24 +353,11 @@ export default function AgentQueuePage() {
                   <PhoneCall className="h-4 w-4" />
                   {isTestingCall ? 'Calling...' : 'Test Call'}
                 </button>
-                <button
-                  onClick={handleTestIncoming}
-                  disabled={isTestingIncoming || !isOnline}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all ${
-                    isTestingIncoming || !isOnline
-                      ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                      : 'bg-orange-500 text-white hover:bg-orange-600'
-                  }`}
-                  title="Simulates what Vapi does when transferring - calls the queue number directly"
-                >
-                  <PhoneIncoming className="h-4 w-4" />
-                  {isTestingIncoming ? 'Testing...' : 'Test Vapi Transfer'}
-                </button>
               </div>
               <p className="text-xs text-gray-500 mt-1">
                 {!isOnline
                   ? 'Go online first to test incoming calls'
-                  : 'Test Call: Calls your phone → Queue. Test Vapi Transfer: Calls queue number directly (simulates Vapi transfer)'}
+                  : 'Calls your phone and places you in the queue to test the agent experience'}
               </p>
             </div>
           </div>
