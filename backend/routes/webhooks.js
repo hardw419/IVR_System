@@ -234,21 +234,25 @@ router.post('/vapi', async (req, res) => {
             await call.save();
           }
 
-          // End the Vapi call after a short delay (let the goodbye message play)
+          // End the Vapi call immediately after sending response
           const vapiCallId = vapiCall?.id;
           if (vapiCallId) {
-            setTimeout(async () => {
+            // Use setImmediate to end call after response is sent
+            setImmediate(async () => {
+              // Wait 3 seconds for the message to be spoken
+              await new Promise(resolve => setTimeout(resolve, 3000));
               try {
                 console.log('📴 Ending Vapi call:', vapiCallId);
                 await vapiService.endCall(vapiCallId);
                 console.log('✅ Vapi call ended successfully');
               } catch (endError) {
                 console.error('⚠️ Error ending Vapi call:', endError.message);
+                console.error('Error details:', endError.response?.data || endError);
               }
-            }, 5000); // Wait 5 seconds for goodbye message to play
+            });
           }
 
-          // Tell Vapi to say goodbye - call will be ended after message plays
+          // Tell Vapi to say goodbye - call will be ended shortly after
           return res.json({
             results: [{
               toolCallId: transferCall.id,
