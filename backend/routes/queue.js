@@ -57,16 +57,25 @@ router.post('/test-call', auth, async (req, res) => {
 // @access  Private
 router.get('/', auth, async (req, res) => {
   try {
-    console.log('=== QUEUE FETCH v4 ===');
+    console.log('=== QUEUE FETCH v5 ===');
 
-    // Use exact same query as debug endpoint
-    const allItems = await CallQueue.find({}).sort({ waitStartTime: -1 });
-    console.log('All items in DB:', allItems.length);
-
-    // Filter for waiting/ringing in JavaScript
-    const queue = allItems.filter(item =>
-      item.status === 'waiting' || item.status === 'ringing'
+    // Auto-expire old entries (older than 10 minutes)
+    const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
+    await CallQueue.updateMany(
+      {
+        status: { $in: ['waiting', 'ringing'] },
+        waitStartTime: { $lt: tenMinutesAgo }
+      },
+      {
+        $set: { status: 'timeout', endTime: new Date() }
+      }
     );
+
+    // Get waiting/ringing items
+    const queue = await CallQueue.find({
+      status: { $in: ['waiting', 'ringing'] }
+    }).sort({ priority: -1, waitStartTime: 1 });
+
     console.log('Waiting/ringing items:', queue.length);
 
     // Calculate wait time for each call
@@ -79,12 +88,34 @@ router.get('/', auth, async (req, res) => {
       success: true,
       queue: queueWithWaitTime,
       count: queue.length,
-      totalInDb: allItems.length,
-      version: 'v4'
+      version: 'v5'
     });
   } catch (error) {
     console.error('Queue fetch error:', error);
     res.status(500).json({ success: false, message: 'Server error', error: error.message });
+  }
+});
+
+// @route   POST /api/queue/cleanup
+// @desc    Manually cleanup old/stale queue entries
+// @access  Private
+router.post('/cleanup', auth, async (req, res) => {
+  try {
+    // Mark all waiting/ringing as abandoned
+    const result = await CallQueue.updateMany(
+      { status: { $in: ['waiting', 'ringing'] } },
+      { $set: { status: 'abandoned', endTime: new Date() } }
+    );
+
+    console.log('Cleaned up queue entries:', result.modifiedCount);
+
+    res.json({
+      success: true,
+      message: `Cleaned up ${result.modifiedCount} queue entries`
+    });
+  } catch (error) {
+    console.error('Cleanup error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
   }
 });
 
