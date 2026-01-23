@@ -63,7 +63,8 @@ class VapiService {
       // Use Vapi's BUILT-IN transferCall for seamless transfer (no callback needed)
       // The customer stays on the same call and gets transferred to our queue number
       // IMPORTANT: The queue number must have webhook configured to /api/queue/incoming
-      const queueNumber = process.env.TWILIO_QUEUE_NUMBER || '+18884706735';
+      // Using regular number (not toll-free) - toll-free numbers have issues with Vapi transfers
+      const queueNumber = process.env.TWILIO_QUEUE_NUMBER || '+19287693143';
 
       assistantConfig_final.model.tools = [
         {
