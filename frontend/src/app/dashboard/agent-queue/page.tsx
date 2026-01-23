@@ -124,15 +124,16 @@ export default function AgentQueuePage() {
         console.log('📞 Incoming call:', data);
         // Play sound or show notification
         toast.success(`🔔 Incoming call from ${data.customerPhone}`, { duration: 10000 });
-        // Add to queue immediately
+        // Add to queue immediately - include BOTH vapiCallId and twilioCallSid
         setQueue(prev => [{
           _id: data.queueId,
           customerPhone: data.customerPhone,
           customerName: data.customerName,
-          keyPressed: 'direct',
+          keyPressed: data.isVapiTransfer ? 'transfer' : 'direct',
           status: 'waiting',
           currentWaitTime: 0,
           waitStartTime: data.waitStartTime,
+          vapiCallId: data.vapiCallId,  // Include vapiCallId for queue matching
           twilioCallSid: data.callSid
         }, ...prev]);
       });
@@ -211,8 +212,11 @@ export default function AgentQueuePage() {
 
       // Connect via Twilio Device (browser calling)
       if (phoneReady) {
-        // Use twilioCallSid for direct calls, vapiCallId for Vapi transfers
-        const callId = queueItem.twilioCallSid || queueItem.vapiCallId;
+        // For Vapi transfers, use vapiCallId (matches the queue name)
+        // For direct calls, use twilioCallSid
+        // Priority: vapiCallId first, since queue name is queue-{vapiCallId}
+        const callId = queueItem.vapiCallId || queueItem.twilioCallSid;
+        console.log('🔗 Connecting with callId:', callId, 'vapiCallId:', queueItem.vapiCallId, 'twilioCallSid:', queueItem.twilioCallSid);
         if (callId) {
           const call = await makeCall(callId);
           if (call) {

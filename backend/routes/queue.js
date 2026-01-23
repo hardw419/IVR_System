@@ -57,19 +57,23 @@ router.post('/test-call', auth, async (req, res) => {
 // @access  Private
 router.get('/', auth, async (req, res) => {
   try {
-    console.log('=== QUEUE FETCH v5 ===');
+    console.log('=== QUEUE FETCH v6 ===');
 
-    // Auto-expire old entries (older than 10 minutes)
-    const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
-    await CallQueue.updateMany(
+    // Auto-expire old entries (older than 2 minutes - calls don't last that long in queue)
+    const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000);
+    const expireResult = await CallQueue.updateMany(
       {
         status: { $in: ['waiting', 'ringing'] },
-        waitStartTime: { $lt: tenMinutesAgo }
+        waitStartTime: { $lt: twoMinutesAgo }
       },
       {
         $set: { status: 'timeout', endTime: new Date() }
       }
     );
+
+    if (expireResult.modifiedCount > 0) {
+      console.log('Auto-expired', expireResult.modifiedCount, 'old queue entries');
+    }
 
     // Get waiting/ringing items
     const queue = await CallQueue.find({
@@ -88,7 +92,7 @@ router.get('/', auth, async (req, res) => {
       success: true,
       queue: queueWithWaitTime,
       count: queue.length,
-      version: 'v5'
+      version: 'v6'
     });
   } catch (error) {
     console.error('Queue fetch error:', error);
