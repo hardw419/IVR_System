@@ -226,16 +226,8 @@ router.post('/vapi', async (req, res) => {
 
           // Try to use Twilio API to redirect the call directly
           const queueNumber = process.env.TWILIO_QUEUE_NUMBER || '+18884706735';
-          // Try multiple paths to find Twilio Call SID
-          const twilioCallSid = vapiCall?.phoneCallProviderId ||
-                                vapiCall?.transport?.callSid ||
-                                message?.call?.phoneCallProviderId ||
-                                message?.call?.transport?.callSid;
 
-          console.log('🔍 Looking for Twilio SID in:');
-          console.log('  - vapiCall.phoneCallProviderId:', vapiCall?.phoneCallProviderId);
-          console.log('  - vapiCall.transport.callSid:', vapiCall?.transport?.callSid);
-          console.log('  - Found SID:', twilioCallSid);
+          console.log('🔍 Using stored Twilio SID:', twilioCallSid);
 
           if (twilioCallSid) {
             console.log('📱 Attempting Twilio redirect for SID:', twilioCallSid);
