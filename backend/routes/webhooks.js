@@ -5,6 +5,7 @@ const Call = require('../models/Call');
 const Agent = require('../models/Agent');
 const CallQueue = require('../models/CallQueue');
 const twilioService = require('../services/twilioService');
+const vapiService = require('../services/vapiService');
 
 // @route   POST /api/webhooks/twilio/status
 // @desc    Handle Twilio call status updates
@@ -233,12 +234,25 @@ router.post('/vapi', async (req, res) => {
             await call.save();
           }
 
-          // Tell Vapi to say goodbye and end the call
-          // The customer will receive our callback shortly
+          // End the Vapi call after a short delay (let the goodbye message play)
+          const vapiCallId = vapiCall?.id;
+          if (vapiCallId) {
+            setTimeout(async () => {
+              try {
+                console.log('📴 Ending Vapi call:', vapiCallId);
+                await vapiService.endCall(vapiCallId);
+                console.log('✅ Vapi call ended successfully');
+              } catch (endError) {
+                console.error('⚠️ Error ending Vapi call:', endError.message);
+              }
+            }, 5000); // Wait 5 seconds for goodbye message to play
+          }
+
+          // Tell Vapi to say goodbye - call will be ended after message plays
           return res.json({
             results: [{
               toolCallId: transferCall.id,
-              result: 'I am transferring you now. You will receive a call back from our agent line in a moment. Please answer that call to speak with an agent. Thank you!'
+              result: 'I have arranged for an agent to call you back. You will receive a call shortly. Goodbye!'
             }]
           });
 
