@@ -60,31 +60,36 @@ class VapiService {
         serverUrl: 'https://ivr-system-backend.onrender.com/api/webhooks/vapi'
       };
 
-      // Use Vapi's BUILT-IN transferCall tool with our queue number as destination
-      // This actually transfers the call to our number where we handle queueing
-      const queueNumber = process.env.TWILIO_QUEUE_NUMBER || '+18884706735';
-
+      // Use CUSTOM transferToAgent function - this triggers our webhook
+      // which then uses Twilio API to call the customer back (like Test Call does)
       assistantConfig_final.model.tools = [
         {
-          type: 'transferCall',
-          destinations: [
-            {
-              type: 'number',
-              number: queueNumber,
-              message: 'Transferring you to an agent now. Please hold.',
-              description: 'Transfer to human agent queue'
+          type: 'function',
+          function: {
+            name: 'transferToAgent',
+            description: 'Transfer the call to a human agent when the customer requests to speak with a human, agent, or real person. Call this function immediately when the customer asks for a human.',
+            parameters: {
+              type: 'object',
+              properties: {
+                reason: {
+                  type: 'string',
+                  description: 'The reason for the transfer request'
+                }
+              },
+              required: []
             }
-          ],
+          },
+          async: false,
           messages: [
             {
               type: 'request-start',
-              content: 'Please hold while I transfer you to an agent.'
+              content: 'One moment please, I am connecting you to an agent now.'
             }
           ]
         }
       ];
 
-      console.log('Using BUILT-IN transferCall tool with queue number:', queueNumber);
+      console.log('Using CUSTOM transferToAgent function with CALLBACK approach');
 
       payload = {
         phoneNumberId: process.env.VAPI_PHONE_NUMBER_ID,

@@ -152,117 +152,94 @@ router.post('/vapi', async (req, res) => {
 
       if (transferCall) {
         console.log('🎯 TRANSFER FUNCTION DETECTED:', transferCall.function?.name || transferCall.name);
-        console.log('📞 Full vapiCall object:', JSON.stringify(vapiCall, null, 2));
         const call = vapiCall?.id ? await Call.findOne({ vapiCallId: vapiCall.id }) : null;
 
         console.log('📞 Transfer requested for call:', vapiCall?.id);
-        console.log('📞 Vapi phoneCallProviderId (Twilio SID):', vapiCall?.phoneCallProviderId);
-        console.log('Call found in DB:', call ? call._id : 'Not found');
 
-        // Create queue entry for this transfer request (prevent duplicates)
-        const User = require('../models/User');
-        const users = await User.find({});
-        const user = call?.userId ? { _id: call.userId } : (users[0] || null);
+        // Get customer phone number - we'll call them back directly using Twilio API
+        const customerPhone = call?.customerPhone || vapiCall?.customer?.number;
+        console.log('📱 Customer phone number:', customerPhone);
 
-        if (user) {
-          // Check if queue entry already exists for this call (within last 2 minutes) to prevent duplicates
-          const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000);
-          const existingEntry = await CallQueue.findOne({
-            vapiCallId: vapiCall?.id,
-            status: { $in: ['waiting', 'ringing'] },
-            waitStartTime: { $gt: twoMinutesAgo }  // Only check recent entries
+        if (!customerPhone) {
+          console.log('❌ No customer phone number available');
+          return res.json({
+            results: [{
+              toolCallId: transferCall.id,
+              result: 'Unable to transfer - no phone number available.'
+            }]
+          });
+        }
+
+        // Check for duplicate transfer requests (within last 2 minutes)
+        const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000);
+        const existingEntry = await CallQueue.findOne({
+          customerPhone: customerPhone,
+          status: { $in: ['waiting', 'ringing'] },
+          waitStartTime: { $gt: twoMinutesAgo }
+        });
+
+        if (existingEntry) {
+          console.log('⚠️ Queue entry already exists for this customer:', existingEntry._id);
+          return res.json({
+            results: [{
+              toolCallId: transferCall.id,
+              result: 'Transfer already in progress. Please hold.'
+            }]
+          });
+        }
+
+        // === CALLBACK APPROACH (like Test Call) ===
+        // Use Twilio API directly to call the customer back
+        // This creates a call on OUR Twilio account that we can control
+        const twilioClient = twilio(
+          process.env.TWILIO_ACCOUNT_SID,
+          process.env.TWILIO_AUTH_TOKEN
+        );
+
+        const webhookUrl = 'https://ivr-system-backend.onrender.com/api/queue/incoming';
+        const fromNumber = process.env.TWILIO_QUEUE_NUMBER || process.env.TWILIO_PHONE_NUMBER;
+
+        console.log('📞 CALLBACK APPROACH: Calling customer back directly via Twilio API');
+        console.log('📞 From:', fromNumber, 'To:', customerPhone);
+        console.log('📞 Webhook URL:', webhookUrl);
+
+        try {
+          // Make outbound call to customer (same as test call does)
+          const newCall = await twilioClient.calls.create({
+            to: customerPhone,
+            from: fromNumber,
+            url: webhookUrl,
+            method: 'POST'
           });
 
-          if (existingEntry) {
-            console.log('⚠️ Queue entry already exists for this call:', existingEntry._id);
-            return res.json({
-              results: [{
-                toolCallId: transferCall.id,
-                result: 'Transfer already in progress.'
-              }]
-            });
-          }
+          console.log('✅ Callback initiated! New CallSid:', newCall.sid);
+          console.log('📞 Customer will receive a call from:', fromNumber);
 
-          // Get the Twilio Call SID for later use
-          const twilioCallSid = vapiCall?.phoneCallProviderId ||
-                                vapiCall?.transport?.callSid;
-
-          // Create queue entry
-          const queueEntry = new CallQueue({
-            callId: call?._id,
-            vapiCallId: vapiCall?.id,
-            twilioCallSid: twilioCallSid,  // Store for later connection
-            userId: user._id,
-            customerPhone: call?.customerPhone || vapiCall?.customer?.number || 'Unknown',
-            customerName: call?.customerName || vapiCall?.customer?.number || 'Unknown Caller',
-            keyPressed: 'transfer',
-            status: 'waiting',
-            waitStartTime: new Date(),
-            priority: 2  // Higher priority for transfer requests
-          });
-
-          const savedEntry = await queueEntry.save();
-          console.log('📋 Queue entry created:', savedEntry._id);
-          console.log('📞 Stored Twilio SID:', twilioCallSid);
-
-          // Emit socket event to notify agents
-          const io = req.app.get('io');
-          if (io) {
-            io.emit('incoming-call', {
-              queueId: savedEntry._id,
-              customerPhone: queueEntry.customerPhone,
-              customerName: queueEntry.customerName,
-              vapiCallId: vapiCall?.id,
-              waitStartTime: new Date(),
-              isVapiTransfer: true
-            });
-            console.log('🔔 Socket event emitted to agents');
-          }
-
-          // Update call status
+          // Update original call status
           if (call) {
-            call.status = 'in-queue';
+            call.status = 'transferred';
             call.keyPressed = 'transfer';
             await call.save();
           }
 
-          // Try to use Twilio API to redirect the call directly
-          const queueNumber = process.env.TWILIO_QUEUE_NUMBER || '+18884706735';
-
-          console.log('🔍 Using stored Twilio SID:', twilioCallSid);
-
-          // NOTE: We cannot redirect Vapi's Twilio call because it's on VAPI's Twilio account, not ours.
-          // Instead, we tell Vapi to transfer to our number, and we handle it when the call arrives.
-          // IMPORTANT: For Vapi to actually transfer, 'destination' must be at ROOT level, not inside 'results'
-
-          console.log('📱 Telling Vapi to transfer to our queue number:', queueNumber);
-          console.log('📱 Queue entry ID for matching:', savedEntry._id);
-          console.log('📱 VapiCallId for matching:', vapiCall?.id);
-
-          // Vapi expects destination at root level for transfers
+          // Tell Vapi to say goodbye and end the call
+          // The customer will receive our callback shortly
           return res.json({
             results: [{
               toolCallId: transferCall.id,
-              result: 'Transferring to agent queue now.'
-            }],
-            // Destination MUST be at root level for Vapi to execute transfer!
-            destination: {
-              type: 'number',
-              number: queueNumber,
-              message: 'Transferring you to an agent. Please hold.',
-              transferPlan: {
-                mode: 'blind-transfer'
-              }
-            }
+              result: 'I am transferring you now. You will receive a call back from our agent line in a moment. Please answer that call to speak with an agent. Thank you!'
+            }]
+          });
+
+        } catch (twilioError) {
+          console.error('❌ Twilio callback error:', twilioError.message);
+          return res.json({
+            results: [{
+              toolCallId: transferCall.id,
+              result: 'I apologize, there was an error connecting you. Please call back and try again.'
+            }]
           });
         }
-
-        return res.json({
-          results: [{
-            toolCallId: transferCall.id,
-            result: 'Transfer initiated. Customer is being connected to agent queue.'
-          }]
-        });
       }
 
       // If no transfer function found, return empty results
