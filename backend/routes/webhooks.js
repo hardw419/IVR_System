@@ -151,8 +151,10 @@ router.post('/vapi', async (req, res) => {
       const toolCalls = message.toolCalls || message.toolCallList || body.toolCalls || [];
       console.log('🔧 Tool calls received:', JSON.stringify(toolCalls, null, 2));
 
-      // Find the transferToAgent call
+      // Find the requestHumanAgent or transferToAgent call
       const transferCall = toolCalls.find(tc =>
+        tc.function?.name === 'requestHumanAgent' ||
+        tc.name === 'requestHumanAgent' ||
         tc.function?.name === 'transferToAgent' ||
         tc.name === 'transferToAgent' ||
         tc.function?.name === 'transferCall' ||
@@ -160,7 +162,7 @@ router.post('/vapi', async (req, res) => {
       );
 
       if (transferCall) {
-        console.log('🎯 TRANSFER FUNCTION DETECTED:', transferCall.function?.name || transferCall.name);
+        console.log('🎯 HUMAN AGENT REQUEST DETECTED:', transferCall.function?.name || transferCall.name);
         const call = vapiCall?.id ? await Call.findOne({ vapiCallId: vapiCall.id }) : null;
 
         console.log('📞 Transfer requested for call:', vapiCall?.id);

@@ -13,8 +13,8 @@ class VapiService {
       // Check if we should use saved assistant (for transfer functionality)
       const vapiAssistantId = process.env.VAPI_ASSISTANT_ID;
 
-      // Build transfer instructions for the AI - now transfers to queue, not individual agents
-      let transferInstructions = `\n\nCALL TRANSFER TO HUMAN AGENT:\nIf the customer wants to speak with a human agent, requests to be transferred, or asks for human support, use the transferCall tool to transfer them to the agent queue. Say: "I'll transfer you to one of our agents now. Please hold."`;
+      // Build transfer instructions for the AI - use callback approach
+      let transferInstructions = `\n\nCALL TRANSFER TO HUMAN AGENT:\nIf the customer wants to speak with a human agent, requests to be transferred, or asks for human support, use the requestHumanAgent function. Tell the customer: "I'll arrange for one of our agents to call you right back. Please stay by your phone."`;
 
       const systemPrompt = (script.systemPrompt || '') + transferInstructions;
 
@@ -60,13 +60,29 @@ class VapiService {
         serverUrl: 'https://ivr-system-backend.onrender.com/api/webhooks/vapi'
       };
 
-      // Use Vapi Dashboard transfer tool by ID
-      // Tool ID: e9b1f6dc-9fe0-4179-ab7d-6843e154b0b0 (configured with SIP destination)
-      assistantConfig_final.model.toolIds = [
-        'e9b1f6dc-9fe0-4179-ab7d-6843e154b0b0'
+      // CALLBACK APPROACH: Use custom function tool instead of transferCall
+      // When customer requests transfer, we call them back via Twilio
+      assistantConfig_final.model.tools = [
+        {
+          type: 'function',
+          function: {
+            name: 'requestHumanAgent',
+            description: 'Request to speak with a human agent. Use this when the customer asks to speak to a human, wants to be transferred, or requests human support.',
+            parameters: {
+              type: 'object',
+              properties: {
+                reason: {
+                  type: 'string',
+                  description: 'The reason the customer wants to speak to a human agent'
+                }
+              },
+              required: []
+            }
+          }
+        }
       ];
 
-      console.log('Using Vapi Dashboard transfer tool ID: e9b1f6dc-9fe0-4179-ab7d-6843e154b0b0');
+      console.log('Using CALLBACK approach with requestHumanAgent function tool');
 
       payload = {
         phoneNumberId: process.env.VAPI_PHONE_NUMBER_ID,
