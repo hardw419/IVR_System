@@ -60,31 +60,26 @@ class VapiService {
         serverUrl: 'https://ivr-system-backend.onrender.com/api/webhooks/vapi'
       };
 
-      // CALLBACK APPROACH - This works reliably!
-      // When customer requests transfer, we call them back via Twilio API
-      // The callback puts them in the queue where agent can pick up
+      // Try SIMPLE transferCall - minimal configuration
+      const queueNumber = process.env.TWILIO_QUEUE_NUMBER || '+19287693143';
+
       assistantConfig_final.model.tools = [
         {
-          type: 'function',
-          function: {
-            name: 'transferToAgent',
-            description: 'Transfer the call to a human agent when the customer requests to speak with a human, agent, or real person. Say "I will connect you to an agent now, please stay on the line."',
-            parameters: {
-              type: 'object',
-              properties: {
-                reason: {
-                  type: 'string',
-                  description: 'The reason for the transfer'
-                }
-              },
-              required: []
+          type: 'transferCall',
+          destinations: [
+            {
+              type: 'number',
+              number: queueNumber,
+              message: 'Connecting you to an agent now.',
+              transferPlan: {
+                mode: 'blind-transfer'
+              }
             }
-          },
-          async: false
+          ]
         }
       ];
 
-      console.log('Using CALLBACK approach - customer will receive call from queue');
+      console.log('Using SIMPLE transferCall with blind-transfer to:', queueNumber);
 
       payload = {
         phoneNumberId: process.env.VAPI_PHONE_NUMBER_ID,
