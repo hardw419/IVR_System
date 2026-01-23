@@ -14,7 +14,7 @@ class VapiService {
       const vapiAssistantId = process.env.VAPI_ASSISTANT_ID;
 
       // Build transfer instructions for the AI - use callback approach
-      let transferInstructions = `\n\nCALL TRANSFER TO HUMAN AGENT:\nIf the customer wants to speak with a human agent, requests to be transferred, or asks for human support, use the requestHumanAgent function. Tell the customer: "I'll arrange for one of our agents to call you right back. Please stay by your phone."`;
+      let transferInstructions = `\n\nCALL TRANSFER TO HUMAN AGENT:\nIf the customer wants to speak with a human agent, requests to be transferred, or asks for human support, use the requestHumanAgent function. After using the function, say: "I've arranged for an agent to call you right back. Goodbye!" and then immediately end the call.`;
 
       const systemPrompt = (script.systemPrompt || '') + transferInstructions;
 

@@ -252,12 +252,14 @@ router.post('/vapi', async (req, res) => {
             });
           }
 
-          // Tell Vapi to say goodbye - call will be ended shortly after
+          // Tell Vapi to say goodbye and end the call
+          // The 'endCall' key tells Vapi to hang up after speaking
           return res.json({
             results: [{
               toolCallId: transferCall.id,
               result: 'I have arranged for an agent to call you back. You will receive a call shortly. Goodbye!'
-            }]
+            }],
+            endCall: true
           });
 
         } catch (twilioError) {
