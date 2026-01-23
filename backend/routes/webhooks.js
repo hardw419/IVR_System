@@ -159,16 +159,37 @@ router.post('/vapi', async (req, res) => {
         console.log('📞 Vapi phoneCallProviderId (Twilio SID):', vapiCall?.phoneCallProviderId);
         console.log('Call found in DB:', call ? call._id : 'Not found');
 
-        // Create queue entry for this transfer request
+        // Create queue entry for this transfer request (prevent duplicates)
         const User = require('../models/User');
         const users = await User.find({});
         const user = call?.userId ? { _id: call.userId } : (users[0] || null);
 
         if (user) {
+          // Check if queue entry already exists for this call to prevent duplicates
+          const existingEntry = await CallQueue.findOne({
+            vapiCallId: vapiCall?.id,
+            status: { $in: ['waiting', 'ringing'] }
+          });
+
+          if (existingEntry) {
+            console.log('⚠️ Queue entry already exists for this call:', existingEntry._id);
+            return res.json({
+              results: [{
+                toolCallId: transferCall.id,
+                result: 'Transfer already in progress.'
+              }]
+            });
+          }
+
+          // Get the Twilio Call SID for later use
+          const twilioCallSid = vapiCall?.phoneCallProviderId ||
+                                vapiCall?.transport?.callSid;
+
           // Create queue entry
           const queueEntry = new CallQueue({
             callId: call?._id,
             vapiCallId: vapiCall?.id,
+            twilioCallSid: twilioCallSid,  // Store for later connection
             userId: user._id,
             customerPhone: call?.customerPhone || vapiCall?.customer?.number || 'Unknown',
             customerName: call?.customerName || vapiCall?.customer?.number || 'Unknown Caller',
@@ -180,6 +201,7 @@ router.post('/vapi', async (req, res) => {
 
           const savedEntry = await queueEntry.save();
           console.log('📋 Queue entry created:', savedEntry._id);
+          console.log('📞 Stored Twilio SID:', twilioCallSid);
 
           // Emit socket event to notify agents
           const io = req.app.get('io');

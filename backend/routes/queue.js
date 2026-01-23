@@ -316,17 +316,33 @@ router.post('/vapi-transfer-twiml', async (req, res) => {
   console.log('Queue ID:', queueId);
 
   try {
+    // Get the queue entry to find the vapiCallId
+    const CallQueue = require('../models/CallQueue');
+    const queueEntry = await CallQueue.findById(queueId);
+
+    if (!queueEntry) {
+      console.error('Queue entry not found:', queueId);
+      response.say('Sorry, there was an error. Please try again.');
+      response.hangup();
+      res.type('text/xml');
+      return res.send(response.toString());
+    }
+
+    // Use vapiCallId for the queue name - this MUST match what agent connects to
+    const queueName = `queue-${queueEntry.vapiCallId}`;
+    console.log('Enqueuing caller in:', queueName);
+
     // Play a message and put caller in queue
     response.say({ voice: 'alice', language: 'en-US' },
       'Please hold while we connect you with an agent.');
 
-    // Enqueue the caller in "AgentQueue"
+    // Enqueue the caller with the SAME queue name that agent will dial
     response.enqueue({
       waitUrl: 'https://ivr-system-backend.onrender.com/api/queue/hold-music',
       waitUrlMethod: 'POST',
       action: 'https://ivr-system-backend.onrender.com/api/queue/queue-result',
       method: 'POST'
-    }, 'AgentQueue');
+    }, queueName);
 
     console.log('TwiML Response:', response.toString());
     res.type('text/xml');
