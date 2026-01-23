@@ -59,10 +59,11 @@ router.post('/test-incoming', auth, async (req, res) => {
   try {
     const client = twilio(twilioAccountSid, twilioAuthToken);
 
-    // Call the QUEUE number FROM another Twilio number
-    // This simulates what Vapi should do when transferring
+    // Call the QUEUE number FROM the toll-free number
+    // We use toll-free because +17655236758 might be tied to Vapi
     const queueNumber = process.env.TWILIO_QUEUE_NUMBER || '+19287693143';
-    const fromNumber = process.env.TWILIO_PHONE_NUMBER || '+17655236758';
+    // Try toll-free number as the "from" number
+    const fromNumber = '+18884706735';
 
     console.log('=== TEST INCOMING CALL ===');
     console.log('Calling queue number:', queueNumber);
@@ -80,7 +81,7 @@ router.post('/test-incoming', auth, async (req, res) => {
 
     res.json({
       success: true,
-      message: `Calling ${queueNumber} to test incoming webhook. Check Agent Queue!`,
+      message: `Calling ${queueNumber} from ${fromNumber}. Check Agent Queue!`,
       callSid: call.sid
     });
   } catch (error) {
