@@ -60,8 +60,8 @@ class VapiService {
         serverUrl: 'https://ivr-system-backend.onrender.com/api/webhooks/vapi'
       };
 
-      // Try SIMPLE transferCall - minimal configuration
-      const queueNumber = process.env.TWILIO_QUEUE_NUMBER || '+19287693143';
+      // TEST: Transfer to mobile number to verify Vapi transfer works
+      const testMobileNumber = '+917206534017';
 
       assistantConfig_final.model.tools = [
         {
@@ -69,7 +69,7 @@ class VapiService {
           destinations: [
             {
               type: 'number',
-              number: queueNumber,
+              number: testMobileNumber,
               message: 'Connecting you to an agent now.',
               transferPlan: {
                 mode: 'blind-transfer'
@@ -79,7 +79,7 @@ class VapiService {
         }
       ];
 
-      console.log('Using SIMPLE transferCall with blind-transfer to:', queueNumber);
+      console.log('TEST: Using transferCall to MOBILE number:', testMobileNumber);
 
       payload = {
         phoneNumberId: process.env.VAPI_PHONE_NUMBER_ID,
