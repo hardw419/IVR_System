@@ -60,31 +60,56 @@ class VapiService {
         serverUrl: 'https://ivr-system-backend.onrender.com/api/webhooks/vapi'
       };
 
-      // Use CUSTOM transferToAgent function - triggers our webhook
-      // which then calls the customer back via Twilio API (callback approach)
-      // NOTE: Vapi's built-in transferCall doesn't actually complete transfers to external numbers
+      // Use Vapi's transferCall with FULL configuration per documentation
+      // https://docs.vapi.ai/call-forwarding
+      const queueNumber = process.env.TWILIO_QUEUE_NUMBER || '+19287693143';
+
       assistantConfig_final.model.tools = [
         {
-          type: 'function',
+          type: 'transferCall',
           function: {
-            name: 'transferToAgent',
-            description: 'Transfer the call to a human agent when the customer requests to speak with a human, agent, or real person.',
+            name: 'transferCall',
+            description: 'Use this function to transfer the call to a human agent when the customer requests to speak with a human, agent, or real person.',
             parameters: {
               type: 'object',
               properties: {
-                reason: {
+                destination: {
                   type: 'string',
-                  description: 'The reason for the transfer'
+                  enum: [queueNumber],
+                  description: 'The destination to transfer the call to.'
                 }
               },
-              required: []
+              required: ['destination']
             }
           },
-          async: false
+          destinations: [
+            {
+              type: 'number',
+              number: queueNumber,
+              message: 'Please hold while I connect you to an agent.',
+              transferPlan: {
+                mode: 'warm-transfer-with-twiml',
+                twiml: '<Say voice="alice">Please wait while we connect you to an agent.</Say><Enqueue waitUrl="https://ivr-system-backend.onrender.com/api/queue/hold-music" waitUrlMethod="POST">agent-queue</Enqueue>'
+              }
+            }
+          ],
+          messages: [
+            {
+              type: 'request-start',
+              content: 'Please hold while I connect you to an agent.',
+              conditions: [
+                {
+                  param: 'destination',
+                  operator: 'eq',
+                  value: queueNumber
+                }
+              ]
+            }
+          ]
         }
       ];
 
-      console.log('Using CUSTOM transferToAgent with CALLBACK approach');
+      console.log('Using FULL transferCall config with TwiML mode to:', queueNumber);
 
       payload = {
         phoneNumberId: process.env.VAPI_PHONE_NUMBER_ID,
