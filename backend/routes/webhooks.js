@@ -134,6 +134,15 @@ router.post('/vapi', async (req, res) => {
     console.log('📞 Has call object:', !!vapiCall);
     console.log('📋 Message keys:', Object.keys(message));
 
+    // Log important transfer-related fields
+    if (type === 'status-update') {
+      console.log('🔄 STATUS UPDATE DETAILS:');
+      console.log('   Status:', message.status);
+      console.log('   EndedReason:', message.endedReason);
+      console.log('   ForwardingPhoneNumber:', message.forwardingPhoneNumber);
+      console.log('   Destination:', JSON.stringify(message.destination, null, 2));
+    }
+
     // Handle tool-calls event (Vapi sends 'tool-calls', not 'function-call')
     if (type === 'tool-calls') {
       console.log('🎉 TOOL-CALLS EVENT DETECTED!');
