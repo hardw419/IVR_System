@@ -93,5 +93,6 @@ export const queueAPI = {
   getToken: () => api.get('/queue/token'),
   connectCall: (callSid: string) => api.post(`/queue/connect/${callSid}`),
   testCall: (phoneNumber: string) => api.post('/queue/test-call', { phoneNumber }),
+  testIncoming: () => api.post('/queue/test-incoming'),
 };
 
