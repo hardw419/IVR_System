@@ -52,6 +52,43 @@ router.post('/test-call', auth, async (req, res) => {
   }
 });
 
+// @route   POST /api/queue/test-incoming
+// @desc    Test incoming call webhook by calling the queue number
+// @access  Private
+router.post('/test-incoming', auth, async (req, res) => {
+  try {
+    const client = twilio(twilioAccountSid, twilioAuthToken);
+
+    // Call the QUEUE number FROM another Twilio number
+    // This simulates what Vapi should do when transferring
+    const queueNumber = process.env.TWILIO_QUEUE_NUMBER || '+19287693143';
+    const fromNumber = process.env.TWILIO_PHONE_NUMBER || '+17655236758';
+
+    console.log('=== TEST INCOMING CALL ===');
+    console.log('Calling queue number:', queueNumber);
+    console.log('From number:', fromNumber);
+
+    // Make call TO the queue number - this should trigger the /incoming webhook
+    const call = await client.calls.create({
+      to: queueNumber,
+      from: fromNumber,
+      url: 'https://ivr-system-backend.onrender.com/api/queue/incoming',
+      method: 'POST'
+    });
+
+    console.log('Test incoming call initiated:', call.sid);
+
+    res.json({
+      success: true,
+      message: `Calling ${queueNumber} to test incoming webhook. Check Agent Queue!`,
+      callSid: call.sid
+    });
+  } catch (error) {
+    console.error('Test incoming call error:', error);
+    res.status(500).json({ success: false, message: error.message || 'Failed to make test call' });
+  }
+});
+
 // @route   GET /api/queue
 // @desc    Get all waiting calls in queue
 // @access  Private
