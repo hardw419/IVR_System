@@ -33,21 +33,8 @@ class VapiService {
 
       let payload;
 
-      // Transfer destination is the SECOND Twilio number (Agent Queue)
-      // This is DIFFERENT from the Vapi outbound number to avoid self-transfer issues
-      const twilioQueueNumber = process.env.TWILIO_QUEUE_NUMBER || '+18884706735';
-
-      // Single transfer destination - Queue number which routes to Agent Queue
-      const transferDestinations = [{
-        type: 'number',
-        number: twilioQueueNumber,
-        message: 'Transferring you to an agent. Please hold.',
-        description: 'Transfer to Agent Queue'
-      }];
-
-      console.log('Transfer destination (Queue Number):', twilioQueueNumber);
-
-      // Build inline assistant with queue transfer
+      // Build inline assistant with CUSTOM transfer function (not built-in transferCall)
+      // The built-in transferCall doesn't trigger our webhook - we need a custom function
       const assistantConfig_final = {
         model: {
           provider: 'openai',
@@ -70,16 +57,29 @@ class VapiService {
         endCallFunctionEnabled: true,
         dialKeypadFunctionEnabled: true,
         // Always use Render URL for Vapi webhook (not localhost)
-        serverUrl: process.env.RENDER_EXTERNAL_URL
-          ? `${process.env.RENDER_EXTERNAL_URL}/api/webhooks/vapi`
-          : (process.env.VAPI_WEBHOOK_URL || 'https://ivr-system-backend.onrender.com/api/webhooks/vapi')
+        serverUrl: 'https://ivr-system-backend.onrender.com/api/webhooks/vapi'
       };
 
-      // Always add transfer tool - routes to Agent Queue via Twilio number
+      // Use a CUSTOM function instead of built-in transferCall
+      // This ensures our webhook gets called so we can redirect via Twilio API
       assistantConfig_final.model.tools = [
         {
-          type: 'transferCall',
-          destinations: transferDestinations,
+          type: 'function',
+          function: {
+            name: 'transferToAgent',
+            description: 'Transfer the call to a human agent when the customer requests to speak with a human, agent, or real person.',
+            parameters: {
+              type: 'object',
+              properties: {
+                reason: {
+                  type: 'string',
+                  description: 'The reason for the transfer request'
+                }
+              },
+              required: []
+            }
+          },
+          async: false,
           messages: [
             {
               type: 'request-start',
@@ -88,6 +88,8 @@ class VapiService {
           ]
         }
       ];
+
+      console.log('Using CUSTOM transferToAgent function (not built-in transferCall)');
 
       payload = {
         phoneNumberId: process.env.VAPI_PHONE_NUMBER_ID,

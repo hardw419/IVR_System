@@ -124,13 +124,15 @@ router.post('/vapi', async (req, res) => {
     const vapiCall = message.call || body.call;
     const digit = message.digit || body.digit;
 
-    // Handle function-call for transfer_call_tool
+    // Handle function-call for transfer
     if (type === 'function-call') {
       const functionCall = message.functionCall || body.functionCall;
-      console.log('🔧 Function call received:', functionCall);
+      console.log('🔧 Function call received:', JSON.stringify(functionCall, null, 2));
       console.log('📞 Full vapiCall object:', JSON.stringify(vapiCall, null, 2));
 
-      if (functionCall?.name === 'transferCall' || functionCall?.name === 'transfer_call_tool') {
+      // Handle our CUSTOM transferToAgent function (also keep legacy transferCall support)
+      if (functionCall?.name === 'transferToAgent' || functionCall?.name === 'transferCall' || functionCall?.name === 'transfer_call_tool') {
+        console.log('🎯 TRANSFER FUNCTION DETECTED:', functionCall?.name);
         const call = vapiCall?.id ? await Call.findOne({ vapiCallId: vapiCall.id }) : null;
 
         console.log('📞 Transfer requested for call:', vapiCall?.id);
@@ -182,7 +184,16 @@ router.post('/vapi', async (req, res) => {
 
           // Try to use Twilio API to redirect the call directly
           const queueNumber = process.env.TWILIO_QUEUE_NUMBER || '+18884706735';
-          const twilioCallSid = vapiCall?.phoneCallProviderId;
+          // Try multiple paths to find Twilio Call SID
+          const twilioCallSid = vapiCall?.phoneCallProviderId ||
+                                vapiCall?.transport?.callSid ||
+                                message?.call?.phoneCallProviderId ||
+                                message?.call?.transport?.callSid;
+
+          console.log('🔍 Looking for Twilio SID in:');
+          console.log('  - vapiCall.phoneCallProviderId:', vapiCall?.phoneCallProviderId);
+          console.log('  - vapiCall.transport.callSid:', vapiCall?.transport?.callSid);
+          console.log('  - Found SID:', twilioCallSid);
 
           if (twilioCallSid) {
             console.log('📱 Attempting Twilio redirect for SID:', twilioCallSid);
