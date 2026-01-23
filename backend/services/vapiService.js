@@ -60,26 +60,13 @@ class VapiService {
         serverUrl: 'https://ivr-system-backend.onrender.com/api/webhooks/vapi'
       };
 
-      // TEST: Transfer to mobile number to verify Vapi transfer works
-      const testMobileNumber = '+917206534017';
-
-      assistantConfig_final.model.tools = [
-        {
-          type: 'transferCall',
-          destinations: [
-            {
-              type: 'number',
-              number: testMobileNumber,
-              message: 'Connecting you to an agent now.',
-              transferPlan: {
-                mode: 'blind-transfer'
-              }
-            }
-          ]
-        }
+      // Use Vapi Dashboard transfer tool by ID
+      // Tool ID: e9b1f6dc-9fe0-4179-ab7d-6843e154b0b0 (configured with SIP destination)
+      assistantConfig_final.model.toolIds = [
+        'e9b1f6dc-9fe0-4179-ab7d-6843e154b0b0'
       ];
 
-      console.log('TEST: Using transferCall to MOBILE number:', testMobileNumber);
+      console.log('Using Vapi Dashboard transfer tool ID: e9b1f6dc-9fe0-4179-ab7d-6843e154b0b0');
 
       payload = {
         phoneNumberId: process.env.VAPI_PHONE_NUMBER_ID,
