@@ -134,16 +134,25 @@ router.post('/vapi', async (req, res) => {
     console.log('📞 Has call object:', !!vapiCall);
     console.log('📋 Message keys:', Object.keys(message));
 
-    // Handle function-call for transfer
-    if (type === 'function-call') {
-      console.log('🎉 FUNCTION-CALL EVENT DETECTED!');
-      const functionCall = message.functionCall || body.functionCall;
-      console.log('🔧 Function call received:', JSON.stringify(functionCall, null, 2));
-      console.log('📞 Full vapiCall object:', JSON.stringify(vapiCall, null, 2));
+    // Handle tool-calls event (Vapi sends 'tool-calls', not 'function-call')
+    if (type === 'tool-calls') {
+      console.log('🎉 TOOL-CALLS EVENT DETECTED!');
 
-      // Handle our CUSTOM transferToAgent function (also keep legacy transferCall support)
-      if (functionCall?.name === 'transferToAgent' || functionCall?.name === 'transferCall' || functionCall?.name === 'transfer_call_tool') {
-        console.log('🎯 TRANSFER FUNCTION DETECTED:', functionCall?.name);
+      // Extract tool calls from various possible locations
+      const toolCalls = message.toolCalls || message.toolCallList || body.toolCalls || [];
+      console.log('🔧 Tool calls received:', JSON.stringify(toolCalls, null, 2));
+
+      // Find the transferToAgent call
+      const transferCall = toolCalls.find(tc =>
+        tc.function?.name === 'transferToAgent' ||
+        tc.name === 'transferToAgent' ||
+        tc.function?.name === 'transferCall' ||
+        tc.name === 'transferCall'
+      );
+
+      if (transferCall) {
+        console.log('🎯 TRANSFER FUNCTION DETECTED:', transferCall.function?.name || transferCall.name);
+        console.log('📞 Full vapiCall object:', JSON.stringify(vapiCall, null, 2));
         const call = vapiCall?.id ? await Call.findOne({ vapiCallId: vapiCall.id }) : null;
 
         console.log('📞 Transfer requested for call:', vapiCall?.id);
@@ -251,8 +260,24 @@ router.post('/vapi', async (req, res) => {
           });
         }
 
-        return res.json({ result: 'Transfer initiated' });
+        return res.json({
+          results: [{
+            toolCallId: transferCall.id,
+            result: 'Transfer initiated. Customer is being connected to agent queue.'
+          }]
+        });
       }
+
+      // If no transfer function found, return empty results
+      console.log('📭 No transfer function in tool calls');
+      return res.json({ results: [] });
+    }
+
+    // Also handle legacy function-call type (just in case)
+    if (type === 'function-call') {
+      console.log('🔧 Legacy function-call event - redirecting to tool-calls handler');
+      // Return a generic response
+      return res.json({ result: 'OK' });
     }
 
     // Handle DTMF event - keypad press 1 or 2
