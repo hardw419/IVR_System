@@ -395,94 +395,111 @@ router.post('/incoming', async (req, res) => {
   const response = new VoiceResponse();
 
   const { From, To, CallSid, Direction, ParentCallSid } = req.body;
-  console.log('=== INCOMING CALL WEBHOOK ===');
+  console.log('');
+  console.log('╔═══════════════════════════════════════════════════════════╗');
+  console.log('║              INCOMING CALL WEBHOOK                         ║');
+  console.log('╚═══════════════════════════════════════════════════════════╝');
   console.log('From:', From, 'To:', To, 'CallSid:', CallSid);
   console.log('Direction:', Direction, 'ParentCallSid:', ParentCallSid);
-  console.log('Full request body:', JSON.stringify(req.body));
 
   // Check if this is a Vapi transfer (has ParentCallSid or specific pattern)
   const isVapiTransfer = !!ParentCallSid || Direction === 'outbound-api';
   console.log('Is Vapi Transfer:', isVapiTransfer);
 
   try {
-    // Get the io instance
     const io = req.app.get('io');
-
-    // Create queue item for this incoming call
     const User = require('../models/User');
-    const users = await User.find({}); // Get all users
-    console.log('Found users:', users.length);
+    const users = await User.find({});
 
-    if (users.length > 0) {
-      const user = users[0]; // Use first user for now
-      console.log('Using user:', user._id, user.email);
+    let queueItem = null;
+    let queueName = `queue-${CallSid}`; // Default queue name
 
-      // Try to find the original call from Vapi if this is a transfer
+    if (isVapiTransfer) {
+      console.log('🔍 Looking for existing queue entry from Vapi transfer...');
+
+      // First, try to find an existing queue entry created by the Vapi webhook
+      // Match by customer phone number and status=waiting, created in last 2 minutes
+      const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000);
+      queueItem = await CallQueue.findOne({
+        customerPhone: From,
+        status: 'waiting',
+        keyPressed: 'transfer',
+        waitStartTime: { $gt: twoMinutesAgo }
+      }).sort({ waitStartTime: -1 });
+
+      if (queueItem) {
+        console.log('✅ Found existing queue entry from Vapi transfer!');
+        console.log('Queue ID:', queueItem._id);
+        console.log('VapiCallId:', queueItem.vapiCallId);
+
+        // Update with new Twilio CallSid
+        queueItem.twilioCallSid = CallSid;
+        await queueItem.save();
+
+        // Use vapiCallId for queue name so agent can connect
+        queueName = `queue-${queueItem.vapiCallId}`;
+        console.log('Using queue name:', queueName);
+      } else {
+        console.log('⚠️ No existing queue entry found, creating new one');
+      }
+    }
+
+    // If no existing queue entry, create a new one
+    if (!queueItem && users.length > 0) {
+      const user = users[0];
       let customerName = From || 'Unknown Caller';
-      let callSource = 'direct';
 
-      if (isVapiTransfer) {
-        callSource = 'vapi-transfer';
-        // Try to find the original call in our database
-        const Call = require('../models/Call');
-        const originalCall = await Call.findOne({
-          $or: [
-            { twilioCallSid: ParentCallSid },
-            { customerPhone: From }
-          ]
-        }).sort({ createdAt: -1 });
+      // Try to find customer info from previous calls
+      const Call = require('../models/Call');
+      const originalCall = await Call.findOne({
+        customerPhone: From
+      }).sort({ createdAt: -1 });
 
-        if (originalCall) {
-          customerName = originalCall.customerName || From;
-          console.log('Found original Vapi call:', originalCall._id, customerName);
-        }
+      if (originalCall) {
+        customerName = originalCall.customerName || From;
       }
 
-      const queueItem = new CallQueue({
+      queueItem = new CallQueue({
         userId: user._id,
         customerPhone: From || 'Unknown',
         customerName: customerName,
-        keyPressed: callSource,
+        keyPressed: isVapiTransfer ? 'vapi-transfer' : 'direct',
         status: 'waiting',
         waitStartTime: new Date(),
         twilioCallSid: CallSid,
-        priority: isVapiTransfer ? 2 : 1  // Higher priority for Vapi transfers
+        priority: isVapiTransfer ? 2 : 1
       });
 
-      const savedItem = await queueItem.save();
-      console.log('=== QUEUE ITEM SAVED ===');
-      console.log('Queue ID:', savedItem._id);
-      console.log('Status:', savedItem.status);
-      console.log('Source:', callSource);
-
-      // Emit to all connected agents
-      if (io) {
-        io.emit('incoming-call', {
-          queueId: savedItem._id,
-          customerPhone: From,
-          customerName: customerName,
-          callSid: CallSid,
-          waitStartTime: new Date(),
-          isVapiTransfer: isVapiTransfer
-        });
-        console.log('Socket.io event emitted');
-      } else {
-        console.log('WARNING: io instance not found!');
-      }
-    } else {
-      console.log('ERROR: No users found in database!');
+      await queueItem.save();
+      console.log('📋 New queue entry created:', queueItem._id);
     }
 
-    // Put caller on hold with music while waiting for agent
+    // Emit to all connected agents
+    if (io && queueItem) {
+      io.emit('incoming-call', {
+        queueId: queueItem._id,
+        customerPhone: From,
+        customerName: queueItem.customerName,
+        callSid: CallSid,
+        vapiCallId: queueItem.vapiCallId,
+        waitStartTime: new Date(),
+        isVapiTransfer: isVapiTransfer
+      });
+      console.log('🔔 Socket.io event emitted to agents');
+    }
+
+    // Put caller on hold with music
     response.say({ voice: 'alice' }, 'Please wait while we connect you to an agent.');
 
-    // Play hold music and wait for agent to dial in
-    // Use absolute URLs for Twilio webhooks
-    const baseUrl = process.env.RENDER_EXTERNAL_URL || 'https://ivr-system-backend.onrender.com';
+    // Enqueue the caller - use the correct queue name
+    const baseUrl = 'https://ivr-system-backend.onrender.com';
+    console.log('📞 Enqueuing caller in:', queueName);
     response.enqueue({
       waitUrl: `${baseUrl}/api/queue/hold-music`,
-      action: `${baseUrl}/api/queue/enqueue-result`
-    }, `queue-${CallSid}`);
+      waitUrlMethod: 'POST',
+      action: `${baseUrl}/api/queue/enqueue-result`,
+      method: 'POST'
+    }, queueName);
 
   } catch (error) {
     console.error('=== INCOMING CALL ERROR ===');

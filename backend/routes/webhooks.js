@@ -231,44 +231,12 @@ router.post('/vapi', async (req, res) => {
 
           console.log('🔍 Using stored Twilio SID:', twilioCallSid);
 
-          if (twilioCallSid) {
-            console.log('📱 Attempting Twilio redirect for SID:', twilioCallSid);
-            console.log('📱 Twilio Account SID available:', !!process.env.TWILIO_ACCOUNT_SID);
-            console.log('📱 Twilio Auth Token available:', !!process.env.TWILIO_AUTH_TOKEN);
-            try {
-              const twilioClient = twilio(
-                process.env.TWILIO_ACCOUNT_SID,
-                process.env.TWILIO_AUTH_TOKEN
-              );
+          // NOTE: We cannot redirect Vapi's Twilio call because it's on VAPI's Twilio account, not ours.
+          // Instead, we tell Vapi to transfer to our number, and we handle it when the call arrives.
 
-              // Create TwiML that puts caller in queue
-              const twimlUrl = `https://ivr-system-backend.onrender.com/api/queue/vapi-transfer-twiml?queueId=${savedEntry._id}`;
-              console.log('📱 TwiML URL:', twimlUrl);
-
-              const updatedCall = await twilioClient.calls(twilioCallSid).update({
-                url: twimlUrl,
-                method: 'POST'
-              });
-
-              console.log('✅ Twilio call redirected successfully!');
-              console.log('✅ Updated call status:', updatedCall.status);
-
-              return res.json({
-                results: [{
-                  toolCallId: transferCall.id,
-                  result: 'Call is being transferred to agent queue.'
-                }]
-              });
-            } catch (twilioError) {
-              console.error('❌ Twilio redirect failed:', twilioError.message);
-              console.error('❌ Full error:', JSON.stringify(twilioError, null, 2));
-              // Fall back - the customer will stay on the Vapi call but we have a queue entry
-            }
-          } else {
-            console.log('⚠️ No Twilio SID found - cannot redirect call');
-          }
-
-          console.log('📱 Returning transfer destination to Vapi:', queueNumber);
+          console.log('📱 Telling Vapi to transfer to our queue number:', queueNumber);
+          console.log('📱 Queue entry ID for matching:', savedEntry._id);
+          console.log('📱 VapiCallId for matching:', vapiCall?.id);
 
           return res.json({
             results: [{
