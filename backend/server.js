@@ -3,6 +3,8 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const http = require('http');
+const fs = require('fs');
+const path = require('path');
 const { Server } = require('socket.io');
 
 const app = express();
@@ -31,6 +33,32 @@ app.use(cors({
 }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Maintenance mode middleware
+app.use((req, res, next) => {
+  // Always allow health check
+  if (req.path === '/health') {
+    return next();
+  }
+
+  try {
+    const maintenanceConfig = JSON.parse(
+      fs.readFileSync(path.join(__dirname, 'config', 'maintenance.json'), 'utf8')
+    );
+
+    if (maintenanceConfig.enabled) {
+      return res.status(503).json({
+        success: false,
+        maintenance: true,
+        message: maintenanceConfig.message || 'System is under maintenance'
+      });
+    }
+  } catch (err) {
+    // If config file doesn't exist or is invalid, continue normally
+  }
+
+  next();
+});
 
 // MongoDB Connection
 mongoose.connect(process.env.MONGODB_URI)
