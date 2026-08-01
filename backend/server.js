@@ -3,8 +3,6 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const http = require('http');
-const fs = require('fs');
-const path = require('path');
 const { Server } = require('socket.io');
 
 const app = express();
@@ -34,38 +32,8 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Maintenance mode middleware
-// ONLY blocks traffic when MAINTENANCE_MODE=true is set in environment.
-// maintenance.json alone no longer blocks production (prevents stuck deploys).
-app.use((req, res, next) => {
-  // Always allow health check
-  if (req.path === '/health') {
-    return next();
-  }
-
-  const envEnabled = String(process.env.MAINTENANCE_MODE || '').toLowerCase() === 'true';
-  if (!envEnabled) {
-    return next();
-  }
-
-  let message = 'System is under maintenance';
-  try {
-    const maintenanceConfig = JSON.parse(
-      fs.readFileSync(path.join(__dirname, 'config', 'maintenance.json'), 'utf8')
-    );
-    if (maintenanceConfig.message) {
-      message = maintenanceConfig.message;
-    }
-  } catch (err) {
-    // use default message
-  }
-
-  return res.status(503).json({
-    success: false,
-    maintenance: true,
-    message
-  });
-});
+// Maintenance mode fully disabled (removed blocking middleware).
+// Previous JSON/env based maintenance was leaving production stuck on 503.
 
 // MongoDB Connection
 mongoose.connect(process.env.MONGODB_URI)
@@ -120,13 +88,11 @@ app.use('/api/queue', require('./routes/queue'));
 
 // Health check
 app.get('/health', (req, res) => {
-  const maintenanceEnabled = String(process.env.MAINTENANCE_MODE || '').toLowerCase() === 'true';
-
   res.json({
     status: 'OK',
     message: 'Server is running',
-    maintenance: maintenanceEnabled,
-    deployedAt: '2026-08-01-maintenance-off-v2'
+    maintenance: false,
+    deployedAt: '2026-08-01-remove-maintenance-block'
   });
 });
 
