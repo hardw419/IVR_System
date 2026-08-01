@@ -35,29 +35,36 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Maintenance mode middleware
+// ONLY blocks traffic when MAINTENANCE_MODE=true is set in environment.
+// maintenance.json alone no longer blocks production (prevents stuck deploys).
 app.use((req, res, next) => {
   // Always allow health check
   if (req.path === '/health') {
     return next();
   }
 
+  const envEnabled = String(process.env.MAINTENANCE_MODE || '').toLowerCase() === 'true';
+  if (!envEnabled) {
+    return next();
+  }
+
+  let message = 'System is under maintenance';
   try {
     const maintenanceConfig = JSON.parse(
       fs.readFileSync(path.join(__dirname, 'config', 'maintenance.json'), 'utf8')
     );
-
-    if (maintenanceConfig.enabled) {
-      return res.status(503).json({
-        success: false,
-        maintenance: true,
-        message: maintenanceConfig.message || 'System is under maintenance'
-      });
+    if (maintenanceConfig.message) {
+      message = maintenanceConfig.message;
     }
   } catch (err) {
-    // If config file doesn't exist or is invalid, continue normally
+    // use default message
   }
 
-  next();
+  return res.status(503).json({
+    success: false,
+    maintenance: true,
+    message
+  });
 });
 
 // MongoDB Connection
@@ -113,21 +120,13 @@ app.use('/api/queue', require('./routes/queue'));
 
 // Health check
 app.get('/health', (req, res) => {
-  let maintenanceEnabled = false;
-  try {
-    const maintenanceConfig = JSON.parse(
-      fs.readFileSync(path.join(__dirname, 'config', 'maintenance.json'), 'utf8')
-    );
-    maintenanceEnabled = Boolean(maintenanceConfig.enabled);
-  } catch (err) {
-    maintenanceEnabled = false;
-  }
+  const maintenanceEnabled = String(process.env.MAINTENANCE_MODE || '').toLowerCase() === 'true';
 
   res.json({
     status: 'OK',
     message: 'Server is running',
     maintenance: maintenanceEnabled,
-    deployedAt: '2026-08-01-maintenance-off'
+    deployedAt: '2026-08-01-maintenance-off-v2'
   });
 });
 
