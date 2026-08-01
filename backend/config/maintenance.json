@@ -1,5 +1,8 @@
 {
   "enabled": false,
-  "message": "System is temporarily under maintenance. Please try again later."
+  "message": "System is temporarily under maintenance. Please try again later.",
+  "updatedAt": "2026-08-01T00:00:00.000Z",
+  "note": "Maintenance mode is OFF. System is live."
 }
+
 

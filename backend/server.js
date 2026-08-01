@@ -113,7 +113,22 @@ app.use('/api/queue', require('./routes/queue'));
 
 // Health check
 app.get('/health', (req, res) => {
-  res.json({ status: 'OK', message: 'Server is running' });
+  let maintenanceEnabled = false;
+  try {
+    const maintenanceConfig = JSON.parse(
+      fs.readFileSync(path.join(__dirname, 'config', 'maintenance.json'), 'utf8')
+    );
+    maintenanceEnabled = Boolean(maintenanceConfig.enabled);
+  } catch (err) {
+    maintenanceEnabled = false;
+  }
+
+  res.json({
+    status: 'OK',
+    message: 'Server is running',
+    maintenance: maintenanceEnabled,
+    deployedAt: '2026-08-01-maintenance-off'
+  });
 });
 
 // Error handling middleware
